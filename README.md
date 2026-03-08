@@ -17,7 +17,7 @@ An agent team framework for Claude Code. Adds structured multi-agent orchestrati
 **Back up your existing `~/.claude/` setup first if you have custom configurations.**
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/OWNER/marcdown/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/MarcKr3/marcdown/main/install.sh)
 ```
 
 This copies framework files directly into `~/.claude/`. Files with identical names are overwritten. The installer will warn you and prompt for confirmation before proceeding.
@@ -31,7 +31,7 @@ This copies framework files directly into `~/.claude/`. Files with identical nam
 Re-run the install script. It will download the latest version and overwrite existing framework files.
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/OWNER/marcdown/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/MarcKr3/marcdown/main/install.sh)
 ```
 
 ## Uninstall
@@ -39,5 +39,5 @@ bash <(curl -fsSL https://raw.githubusercontent.com/OWNER/marcdown/main/install.
 Removes all Marcdown-installed files, leaving a vanilla `~/.claude/` directory. Your own files (settings, projects, memory) are untouched.
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/OWNER/marcdown/main/install.sh) --uninstall
+bash <(curl -fsSL https://raw.githubusercontent.com/MarcKr3/marcdown/main/install.sh) --uninstall
 ```
