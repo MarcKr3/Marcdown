@@ -1,5 +1,7 @@
 # **Humor**
 
+Brought to You by Marc.
+
 ## Marcdown
 
 An agent team framework for Claude Code. Adds structured multi-agent orchestration, slash commands, and quality guardrails to your `~/.claude/` setup.
@@ -34,6 +36,3 @@ Remove the symlinks and the cloned repo:
 ```bash
 cd ~/.claude && rm -f CLAUDE.md CHEATSHEET.md CHEATSHEET.pdf agents commands references templates && rm -rf Marcdown
 ```
-
----
-Brought to You by Marc.
