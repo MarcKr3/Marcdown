@@ -1,7 +1,5 @@
 # **Humor**
 
-Brought to You by Marc.
-
 ## Marcdown
 
 An agent team framework for Claude Code. Adds structured multi-agent orchestration, slash commands, and quality guardrails to your `~/.claude/` setup.
