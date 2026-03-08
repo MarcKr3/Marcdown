@@ -1,13 +1,17 @@
 Record a checkpoint for current work: $ARGUMENTS
 
-Append to `.planning/CHECKPOINTS.md`:
+**Determine scope:**
+- If the first word of `$ARGUMENTS` matches a feature slug in `.planning/features/`, write to `.planning/features/<slug>/CHECKPOINTS.md` and use the remaining arguments as the task description
+- Otherwise, write to `.planning/CHECKPOINTS.md` and use all of `$ARGUMENTS` as the task description
+
+Append:
 
 ```
-## [Task description from arguments] — [current timestamp]
+## [Task description] — [current timestamp]
 - **Status**: [complete | partial | blocked]
 - **Files**: [list files modified in this task]
 - **Notes**: [any observations or concerns]
 ```
 
-Create `.planning/` directory and file if they don't exist.
-Confirm the checkpoint was recorded.
+Create the directory and file if they don't exist.
+Confirm the checkpoint was recorded and show the scope used.

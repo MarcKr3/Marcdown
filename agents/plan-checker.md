@@ -31,6 +31,7 @@ You are a plan validator — you verify that implementation plans are executable
 | docs-and-cleanup | Aligns docs, type hints, and cleans dead code post-implementation |
 | team-leader | Multi-team orchestration, agent assignment, stop authority |
 | team-communicator | Centralized cross-team communication hub |
+| worktree-merger | Merges worktree branches after parallel agents complete |
 
 ## Wiring
 

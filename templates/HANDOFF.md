@@ -16,7 +16,8 @@
 - [Unresolved questions for user — empty if none]
 
 ## Where To Look
-- `.planning/PLAN.md` — current plan and phase
-- `.planning/CHECKPOINTS.md` — what's been completed
-- `.planning/DEVIATIONS.md` — any plan changes
-- `.planning/DEBUG.md` — active debug sessions (if any)
+- `.planning/PLAN.md` — project-level plan and phase
+- `.planning/CHECKPOINTS.md` — project-level completed tasks
+- `.planning/DEVIATIONS.md` — project-level plan changes
+- `.planning/features/*/` — per-feature state (PLAN, CHECKPOINTS, DEVIATIONS)
+- `.planning/debug/*/` — active debug sessions (if any)

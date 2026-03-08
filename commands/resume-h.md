@@ -32,9 +32,10 @@ If `$ARGUMENTS` is empty:
 Once the handoff file is identified and read:
 
 1. Note the handoff date — if it's very old, ask if it's still relevant
-2. Read `.planning/PLAN.md` for the current plan state
-3. Read `.planning/CHECKPOINTS.md` for completed work
-4. Read `.planning/DEVIATIONS.md` for any plan changes
-5. Read `.planning/DEBUG.md` for any active debug sessions
+2. Read `.planning/PLAN.md` for the project-level plan state
+3. Read `.planning/CHECKPOINTS.md` for project-level completed work
+4. Read `.planning/DEVIATIONS.md` for any project-level plan changes
+5. Scan `.planning/features/*/` for all feature workstreams — read each feature's `PLAN.md`, `CHECKPOINTS.md`, `DEVIATIONS.md`
+6. Scan `.planning/debug/*/DEBUG.md` for any active debug sessions
 
 Present a comprehensive "here's where we are" summary and recommend what to tackle next.

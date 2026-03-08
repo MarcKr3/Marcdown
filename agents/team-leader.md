@@ -31,6 +31,7 @@ You are a team leader — you coordinate parallel workstreams, assign agents to 
 | docs-and-cleanup | Aligns docs, type hints, and cleans dead code post-implementation |
 | team-leader | Multi-team orchestration, agent assignment, stop authority |
 | team-communicator | Centralized cross-team communication hub |
+| worktree-merger | Merges worktree branches after parallel agents complete |
 
 ## Wiring
 
@@ -65,10 +66,13 @@ Receive the plan from planning-agent, then:
 - **Minimize agents** — fewer with clear boundaries > many with overlap
 - **Maximize parallelism** — concurrent phases where dependencies allow
 - **Minimize cross-agent dependencies** — cohesive scopes per agent
+- **Worktree isolation** — when assigning parallel agents that modify source code, instruct the orchestrator to spawn them with `isolation: "worktree"`. See the Worktree Isolation section in `~/.claude/references/team-framework.md` for the full policy.
 
 **Mixed teams**: Identify cross-agent dependencies first. Sequence work appropriately. Define interface contracts. Integration check after individual completion.
 
 **Homogeneous teams**: Divide evenly with clear boundaries. Establish shared template for consistent output. Monitor for approach divergence.
+
+**Worktree merge**: After parallel worktree agents complete, instruct the orchestrator to deploy `worktree-merger` with the list of completed branches and their task descriptions. The merger handles sequencing, conflict resolution, and verification.
 
 ### 2. Progress Tracking
 

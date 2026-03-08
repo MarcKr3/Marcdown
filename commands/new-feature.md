@@ -4,18 +4,43 @@ Arguments: $ARGUMENTS
 
 You are orchestrating a feature addition pipeline. This is a shorter alternative to `/new-project` — scoped for adding features to existing codebases. Follow these stages IN ORDER. Never skip a stage. Each stage requires explicit user approval before proceeding to the next.
 
+**Parallel safety:** Each feature gets its own namespace under `.planning/features/<slug>/`. Multiple features can be developed concurrently without file conflicts.
+
 ---
 
-## Stage 0: Input Analysis
+## Pre-Stage: Worktree Isolation (default)
 
-1. If `$ARGUMENTS` contains file paths, read ALL provided files — these are the user's feature specs, notes, or references
-2. Check for existing `.planning/` state:
-   - If `.planning/PLAN.md` exists, note the current plan context — the feature will integrate with it
-   - If `.planning/REQUIREMENTS.md` exists, note existing requirements for cross-referencing
-3. If files were provided, produce a structured analysis:
+**Before any other work**, check if this session is already in a worktree. If not:
+
+1. Use `EnterWorktree` with the feature name as the worktree name (e.g., `EnterWorktree` with name `auth-feature`)
+2. This isolates the entire session so parallel feature work in other tabs cannot conflict
+
+**This is the default behavior.** Only skip if the user explicitly opts out (e.g., "no worktree", "work in main", "skip worktree").
+
+---
+
+## Stage 0: Input Analysis & Feature Naming
+
+1. Determine the **feature name** from `$ARGUMENTS`:
+   - If arguments contain a clear feature name, use it
+   - If arguments are file paths or vague, defer naming to Stage 1
+2. Derive a **slug** from the feature name: lowercase, hyphens for spaces, strip special characters (e.g., "User Authentication" → `user-authentication`)
+3. Create `.planning/features/<slug>/` directory
+4. If `$ARGUMENTS` contains file paths, read ALL provided files — these are the user's feature specs, notes, or references
+5. Check for existing project-level state:
+   - If `.planning/PLAN.md` exists, note the current project plan context
+   - If `.planning/REQUIREMENTS.md` exists, note existing project requirements for cross-referencing
+6. Check for existing feature state:
+   - If `.planning/features/<slug>/` already exists with artifacts, report this and ask: resume, overwrite, or rename?
+7. If files were provided, produce a structured analysis:
 
 ```markdown
 ## Feature Input Analysis
+
+### Feature
+- **Name**: [feature name]
+- **Slug**: `<slug>`
+- **Namespace**: `.planning/features/<slug>/`
 
 ### What's Defined
 - [What the provided documents establish about this feature]
@@ -27,13 +52,15 @@ You are orchestrating a feature addition pipeline. This is a shorter alternative
 - [What needs clarification before proceeding]
 ```
 
-4. Present analysis to user. If no files were provided, proceed directly to Stage 1.
+8. Present analysis to user. If no files were provided, proceed directly to Stage 1.
 
-**Stage 0 exit**: Get user acknowledgment before proceeding.
+**Stage 0 exit**: Get user acknowledgment (including the feature name/slug) before proceeding.
 
 ---
 
 ## Stage 1: Feature Discovery (2 rounds)
+
+If the feature name was not determined in Stage 0, establish it during this stage and derive the slug.
 
 ### Round 1 — Feature Definition (ask 4-6 questions)
 - What exactly is this feature? What does it do for the user?
@@ -56,13 +83,13 @@ You are orchestrating a feature addition pipeline. This is a shorter alternative
 - If Stage 0 provided context, skip questions already answered by the documents.
 - If an answer is vague, probe deeper with follow-ups.
 
-**Stage 1 exit**: Present a brief feature summary back to the user. Ask: "Does this capture the feature accurately? Anything to add or correct?" Get explicit approval.
+**Stage 1 exit**: Present a brief feature summary back to the user, confirming the feature name and slug. Ask: "Does this capture the feature accurately? Anything to add or correct?" Get explicit approval.
 
 ---
 
 ## Stage 2: Feature Requirements
 
-Write `.planning/FEATURE-REQUIREMENTS.md` using this structure:
+Write `.planning/features/<slug>/REQUIREMENTS.md` using this structure:
 
 ```markdown
 # Feature Requirements: [Name]
@@ -120,7 +147,7 @@ The investigator should:
 1. Map the areas of the codebase this feature will touch
 2. Identify existing patterns, conventions, and interfaces to follow
 3. Find integration points and potential conflicts
-4. Write findings to `.planning/FEATURE-CODEBASE.md`:
+4. Write findings to `.planning/features/<slug>/CODEBASE.md`:
 
 ```markdown
 # Feature Codebase Map: [Feature Name]
@@ -159,9 +186,9 @@ Proposed Team Architecture:
 ```
 
 The planning-agent should:
-1. Read `.planning/FEATURE-REQUIREMENTS.md` and `.planning/FEATURE-CODEBASE.md`
-2. If `.planning/PLAN.md` exists, integrate the feature as new phase(s) into the existing plan
-3. If no existing plan, create `.planning/PLAN.md` with the feature implementation plan
+1. Read `.planning/features/<slug>/REQUIREMENTS.md` and `.planning/features/<slug>/CODEBASE.md`
+2. Create `.planning/features/<slug>/PLAN.md` with the feature implementation plan
+3. If a project-level `.planning/PLAN.md` exists, note any dependencies or integration points — but do NOT modify the project plan
 4. Ensure every FREQ-ID maps to a task in the plan
 5. Respect existing codebase patterns identified in Stage 3
 
@@ -180,13 +207,14 @@ Once validated, announce:
 ```
 FEATURE READY
 =============
-Feature: [Name]
-Requirements: .planning/FEATURE-REQUIREMENTS.md
-Codebase Map: .planning/FEATURE-CODEBASE.md
-Plan: .planning/PLAN.md (validated)
+Feature: [Name] (slug: <slug>)
+Namespace: .planning/features/<slug>/
+Requirements: .planning/features/<slug>/REQUIREMENTS.md
+Codebase Map: .planning/features/<slug>/CODEBASE.md
+Plan: .planning/features/<slug>/PLAN.md (validated)
 
 Ready to execute. Use:
-- /implement — to start execution
+- /implement <slug> — to start execution
 - /plan-status — to check progress
 - /status — for full dashboard
 ```
@@ -198,6 +226,12 @@ Do NOT auto-start execution. Let the user decide when to begin with `/implement`
 ## Files Created by This Pipeline
 | File | Stage | Purpose |
 |------|-------|---------|
-| `.planning/FEATURE-REQUIREMENTS.md` | Stage 2 | Feature requirements with FREQ-IDs |
-| `.planning/FEATURE-CODEBASE.md` | Stage 3 | Codebase map for feature integration |
-| `.planning/PLAN.md` | Stage 4 | Implementation plan (created or updated) |
+| `.planning/features/<slug>/REQUIREMENTS.md` | Stage 2 | Feature requirements with FREQ-IDs |
+| `.planning/features/<slug>/CODEBASE.md` | Stage 3 | Codebase map for feature integration |
+| `.planning/features/<slug>/PLAN.md` | Stage 4 | Feature implementation plan |
+
+Additional files created during implementation:
+| File | Created by | Purpose |
+|------|------------|---------|
+| `.planning/features/<slug>/CHECKPOINTS.md` | `/implement` | Task completion records |
+| `.planning/features/<slug>/DEVIATIONS.md` | `/implement` | Plan deviation records |

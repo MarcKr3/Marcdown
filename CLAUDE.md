@@ -16,7 +16,7 @@ NEVER proceed without explicit user approval for: spawning agents, proposing tea
 codebase-investigator -> code-analyser -> theorycrafting -> planning-agent -> plan-checker -> impl-agent -> test-validator -> docs-and-cleanup
 ```
 
-Ad-hoc: debugger (on failures). Orchestration: team-leader (multi-team), team-communicator (cross-team).
+Ad-hoc: debugger (on failures), worktree-merger (after parallel worktree agents). Orchestration: team-leader (multi-team), team-communicator (cross-team).
 
 ## Core Rules
 

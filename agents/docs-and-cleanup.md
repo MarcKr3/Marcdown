@@ -31,6 +31,7 @@ You are a documentation and cleanup specialist — you ensure the codebase remai
 | docs-and-cleanup | Aligns docs, type hints, and cleans dead code post-implementation |
 | team-leader | Multi-team orchestration, agent assignment, stop authority |
 | team-communicator | Centralized cross-team communication hub |
+| worktree-merger | Merges worktree branches after parallel agents complete |
 
 ## Wiring
 

@@ -31,6 +31,7 @@ You are an implementation planner — you decompose architectures into precisely
 | docs-and-cleanup | Aligns docs, type hints, and cleans dead code post-implementation |
 | team-leader | Multi-team orchestration, agent assignment, stop authority |
 | team-communicator | Centralized cross-team communication hub |
+| worktree-merger | Merges worktree branches after parallel agents complete |
 
 ## Wiring
 
@@ -146,7 +147,11 @@ Before finalizing: every architecture component accounted for, dependencies form
 
 ## Plan File Convention
 
-Plans are written to `.planning/PLAN.md` in the project root using the template from `~/.claude/templates/PLAN.md`.
+Plans are written to the appropriate scoped location using the template from `~/.claude/templates/PLAN.md`:
+- **Project plans**: `.planning/PLAN.md`
+- **Feature plans**: `.planning/features/<slug>/PLAN.md` (when planning for a specific feature)
+
+The orchestrator specifies which scope to use. If a feature slug is provided in the directive, use the feature path.
 
 ### YAML Frontmatter (required)
 ```yaml

@@ -37,6 +37,55 @@ Impl-agents map to **independent sub-tasks**, not phases.
 
 Default to generous parallelism. Respect team size limits (7 single-team, 14 multi-team).
 
+## Worktree Isolation
+
+### Session-Level Isolation (default — opt-out)
+
+**All work-initiating commands** (`/new-feature`, `/new-project`, `/implement`, `/plan`, `/debug`) enter a worktree via `EnterWorktree` before doing any work. This is the **default behavior** — the user must explicitly opt out (e.g., "no worktree", "work in main", "skip worktree") to work directly on the main checkout.
+
+This ensures that separate Claude Code tabs/sessions never conflict on the filesystem, even at the top level.
+
+### Sub-Agent Isolation
+
+When spawning agents that modify source code in parallel, use `isolation: "worktree"` on the Agent tool call. This gives each agent an isolated copy of the repository via `git worktree`, preventing filesystem conflicts. If the agent makes changes, its worktree path and branch are returned in the result for merging.
+
+### When to Use Worktrees
+
+| Scenario | Worktree? | Why |
+|----------|-----------|-----|
+| Parallel impl-agents on independent tasks | **Yes** | Prevents source code conflicts |
+| Parallel impl-agents on tightly coupled code | No | Need shared state; run sequentially instead |
+| Single impl-agent (no parallel work) | No | No conflict risk |
+| Read-only agents (investigator, analyser, theorycrafting) | No | Don't modify files |
+| Debugger running alongside implementation | **Yes** | May run commands that conflict |
+| test-validator after worktree impl-agent | **Same worktree** (resume the agent) | Must validate against that agent's changes |
+| docs-and-cleanup after worktree impl-agent | **Same worktree** (resume the agent) | Must operate on that agent's changes |
+
+### Agent Classification
+
+**Worktree-eligible** (modify source code — use worktree when parallel):
+- `impl-agent`
+- `debugger`
+- `docs-and-cleanup`
+- `test-validator`
+
+**Never need worktree** (read-only or write only to `.planning/`):
+- `codebase-investigator`
+- `code-analyser`
+- `theorycrafting`
+- `planning-agent` (writes to `.planning/` only — already namespaced by feature)
+- `plan-checker`
+- `team-communicator`
+
+### Merging Worktree Results
+
+After worktree agents complete, deploy the `worktree-merger` agent to integrate their branches:
+1. Collect all completed worktree branch names and their task descriptions
+2. Determine merge order (respect dependency relationships — independent branches in any order, dependent branches in dependency order)
+3. Spawn `worktree-merger` with the ordered branch list
+4. If the merger escalates conflicts, resolve with user input before continuing
+5. After merge completes cleanly, optionally run `test-validator` against the merged result
+
 ## Agent Selection
 
 | Agent | Use When | Skip When |
@@ -52,19 +101,40 @@ Default to generous parallelism. Respect team size limits (7 single-team, 14 mul
 | docs-and-cleanup | Validated impl needs doc/type updates | Trivial change |
 | team-leader | Multiple parallel teams needed | Single-team work |
 | team-communicator | Parallel teams with shared interfaces | Single team |
+| worktree-merger | After parallel worktree agents complete | No worktrees used, single agent |
 
 ## State Management
 
 Active work state in `.planning/` at the project root:
 
+### Project-Level (singleton)
+
 | File | Purpose | Owner |
 |------|---------|-------|
-| `PLAN.md` | Current plan with YAML frontmatter | planning-agent |
-| `CHECKPOINTS.md` | Task completion log | impl-agent |
-| `DEVIATIONS.md` | Plan deviation records | impl-agent |
-| `DEBUG.md` | Active debug session state | debugger |
+| `PLAN.md` | Project-level plan with YAML frontmatter | planning-agent |
+| `CHECKPOINTS.md` | Project-level task completion log | impl-agent |
+| `DEVIATIONS.md` | Project-level plan deviation records | impl-agent |
+| `REQUIREMENTS.md` | Project requirements (from `/new-project`) | orchestrator |
+| `ROADMAP.md` | Multi-phase roadmap (from `/new-project`) | planning-agent |
 | `HANDOFF.md` | Session continuity — default (thin pointer) | orchestrator |
 | `handoffs/` | Named session handoffs (thin pointers) | orchestrator |
-| `archive/` | Previous plans and debug sessions | any |
+| `archive/` | Archived plans | any |
+
+### Per-Feature (namespaced — parallel-safe)
+
+| Path | Purpose | Owner |
+|------|---------|-------|
+| `features/<slug>/REQUIREMENTS.md` | Feature requirements with FREQ-IDs | orchestrator |
+| `features/<slug>/CODEBASE.md` | Feature codebase map | codebase-investigator |
+| `features/<slug>/PLAN.md` | Feature implementation plan | planning-agent |
+| `features/<slug>/CHECKPOINTS.md` | Feature task completion log | impl-agent |
+| `features/<slug>/DEVIATIONS.md` | Feature plan deviation records | impl-agent |
+| `features/<slug>/archive/` | Archived feature plans | any |
+
+### Per-Debug-Session (namespaced — parallel-safe)
+
+| Path | Purpose | Owner |
+|------|---------|-------|
+| `debug/<slug>/DEBUG.md` | Debug session state | debugger |
 
 Agent memory (`.claude/agent-memory/`) = cross-session learning. `.planning/` = current work state.

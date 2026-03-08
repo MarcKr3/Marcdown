@@ -6,6 +6,17 @@ You are orchestrating a complete project setup. Follow these stages IN ORDER. Ne
 
 ---
 
+## Pre-Stage: Worktree Isolation (default)
+
+**Before any other work**, check if this session is already in a worktree. If not:
+
+1. Use `EnterWorktree` with a name derived from the project (e.g., `EnterWorktree` with name `new-project` or a slug of the project name if known)
+2. This isolates the session so parallel work in other tabs cannot conflict
+
+**This is the default behavior.** Only skip if the user explicitly opts out (e.g., "no worktree", "work in main", "skip worktree").
+
+---
+
 ## Stage 0: Input Analysis (if files provided)
 
 If the user provided file paths as arguments, this stage runs BEFORE discovery. If no files were provided, skip directly to Stage 1.
