@@ -1,0 +1,37 @@
+# === Claude Code runtime (user-specific) ===
+/agent-memory/
+/backups/
+/cache/
+/debug/
+/file-history/
+/ide/
+/paste-cache/
+/plans/
+/plugins/
+/projects/
+/session-env/
+/shell-snapshots/
+/statsig/
+/tasks/
+/telemetry/
+/todos/
+
+# === User-specific files ===
+*.db
+*.tmp
+*.lock
+*.log
+*.backup*
+**.json
+**.jsonl
+
+# === Nested runtime dirs (created by subagents) ===
+**/.claude/
+
+# === OS / editor junk ===
+.DS_Store
+*~
+*.swp
+
+# === Installed by setup script (not part of source) ===
+/Marcdown/
