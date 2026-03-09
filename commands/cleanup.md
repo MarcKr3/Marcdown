@@ -1,5 +1,9 @@
 Post-implementation cleanup: $ARGUMENTS
 
+**Determine scope:**
+- If `$ARGUMENTS` starts with a feature slug matching `.planning/features/<slug>/`, use feature scope
+- Otherwise, use project scope
+
 Launch the docs-and-cleanup agent to:
 1. Review recent diffs and implementation changes
 2. Update documentation (docstrings, comments, READMEs) to match new code

@@ -78,6 +78,7 @@ If the feature name was not determined in Stage 0, establish it during this stag
 - Does this affect existing tests or require new test infrastructure?
 
 **Rules for questioning:**
+- **Use `AskUserQuestion` for ALL discovery questions.** Never ask as plain text. Batch up to 4 questions per call.
 - Ask one round at a time. Wait for answers.
 - Build on previous answers — don't re-ask what's been covered.
 - If Stage 0 provided context, skip questions already answered by the documents.
@@ -89,36 +90,7 @@ If the feature name was not determined in Stage 0, establish it during this stag
 
 ## Stage 2: Feature Requirements
 
-Write `.planning/features/<slug>/REQUIREMENTS.md` using this structure:
-
-```markdown
-# Feature Requirements: [Name]
-
-## Summary
-[2-3 sentences capturing what this feature does and why]
-
-## User Stories
-- As a [user type], I want [action] so that [benefit]
-
-## Requirements
-### Must Have
-- FREQ-001: [requirement with clear acceptance criteria]
-- FREQ-002: ...
-
-### Nice to Have
-- FREQ-XXX: ...
-
-## Integration Constraints
-- [How it must interact with existing code]
-- [API contracts to respect]
-- [Data model implications]
-
-## Out of Scope
-- [Explicitly excluded from this feature]
-
-## Acceptance Criteria
-- [Observable, testable measures that this feature is complete]
-```
+Write `.planning/features/<slug>/REQUIREMENTS.md` using the template from `~/.claude/templates/FEATURE-REQUIREMENTS.md`.
 
 **Rules:**
 - Every requirement gets a FREQ-ID for traceability
@@ -147,28 +119,7 @@ The investigator should:
 1. Map the areas of the codebase this feature will touch
 2. Identify existing patterns, conventions, and interfaces to follow
 3. Find integration points and potential conflicts
-4. Write findings to `.planning/features/<slug>/CODEBASE.md`:
-
-```markdown
-# Feature Codebase Map: [Feature Name]
-
-## Relevant Files & Modules
-| File/Module | Relevance | Will Modify? |
-|-------------|-----------|-------------|
-| ... | ... | Yes/No |
-
-## Existing Patterns to Follow
-- [Coding conventions, naming, architecture patterns in use]
-
-## Integration Points
-- [Where the feature connects to existing code]
-
-## Potential Conflicts
-- [Areas where the feature might clash with existing behavior]
-
-## Test Infrastructure
-- [Existing test patterns, frameworks, relevant test files]
-```
+4. Write findings to `.planning/features/<slug>/CODEBASE.md` using the template from `~/.claude/templates/CODEBASE.md`
 
 **Stage 3 exit**: Present the codebase map. Ask: "Any concerns about integration approach?" Get acknowledgment.
 
@@ -215,7 +166,7 @@ Plan: .planning/features/<slug>/PLAN.md (validated)
 
 Ready to execute. Use:
 - /implement <slug> — to start execution
-- /plan-status — to check progress
+- /status — to check progress
 - /status — for full dashboard
 ```
 

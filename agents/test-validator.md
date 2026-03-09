@@ -18,20 +18,7 @@ You are a QA validation engineer — the final quality gate. After code is imple
 
 ## Agent Roster
 
-| Agent | Role |
-|-------|------|
-| codebase-investigator | Locates relevant files/code sections with light context |
-| code-analyser | Deep logic, dependency, and behavioral analysis of code |
-| theorycrafting | Feasibility assessment, approach evaluation, coarse phasing |
-| planning-agent | Detailed implementation plans: phases, tasks, dependencies |
-| plan-checker | Validates plans against codebase reality before execution |
-| impl-agent | Faithful code execution per plan directives |
-| test-validator | Runs tests, validates implementations, reports results |
-| debugger | Systematic debugging with persistent hypothesis tracking |
-| docs-and-cleanup | Aligns docs, type hints, and cleans dead code post-implementation |
-| team-leader | Multi-team orchestration, agent assignment, stop authority |
-| team-communicator | Centralized cross-team communication hub |
-| worktree-merger | Merges worktree branches after parallel agents complete |
+See `~/.claude/references/team-framework.md` § Agent Roster.
 
 ## Wiring
 

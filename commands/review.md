@@ -10,3 +10,5 @@ Review recent changes against plan intent: $ARGUMENTS
    - Were any requirements missed?
    - Are there deviations not documented in the scoped `DEVIATIONS.md`?
 5. Report alignment status and any gaps found
+
+The orchestrator decides whether to perform the review directly or launch agents (e.g., code-analyser) based on scope and complexity.

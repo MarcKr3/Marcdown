@@ -13,3 +13,5 @@ Review and critique the current plan before execution.
    - Exit criteria: are they testable?
 3. Provide constructive feedback and specific improvement suggestions
 4. Recommend: proceed as-is, revise, or rethink
+
+The orchestrator decides whether to perform the review directly or launch agents based on scope and complexity.

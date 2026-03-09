@@ -100,6 +100,7 @@ Your goal is to extract a complete mental model of what the user wants to build.
 - What would make you abandon this project?
 
 **Rules for questioning:**
+- **Use `AskUserQuestion` for ALL discovery questions.** Never ask as plain text. Batch up to 4 questions per call.
 - Ask one round at a time. Wait for answers.
 - Build on previous answers — don't re-ask what's been covered.
 - If an answer is vague, probe deeper with follow-ups.
@@ -115,37 +116,7 @@ Your goal is to extract a complete mental model of what the user wants to build.
 
 Transform the discovery answers into a structured requirements document.
 
-Write `.planning/REQUIREMENTS.md` using this structure:
-
-```markdown
-# Project Requirements: [Name]
-
-## Vision
-[2-3 sentences capturing the core purpose]
-
-## Target Users
-[Who uses this and what they need]
-
-## Core Requirements
-### Must Have (v1)
-- REQ-001: [requirement with clear acceptance criteria]
-- REQ-002: ...
-
-### Should Have (v1 if time permits)
-- REQ-XXX: ...
-
-### Future (v2+)
-- REQ-XXX: ...
-
-## Technical Constraints
-- [Stack, platform, integration requirements]
-
-## Out of Scope
-- [Explicitly excluded items]
-
-## Success Criteria
-- [Observable, testable measures of project success]
-```
+Write `.planning/REQUIREMENTS.md` using the template from `~/.claude/templates/REQUIREMENTS.md`.
 
 **Rules:**
 - Every requirement gets a REQ-ID for traceability
@@ -190,31 +161,7 @@ Proposed Team Architecture:
 
 The planning-agent should:
 1. Read `.planning/REQUIREMENTS.md` (and `.planning/CODEBASE.md`, `.planning/RESEARCH.md` if they exist)
-2. Create a phased roadmap in `.planning/ROADMAP.md`:
-   ```markdown
-   # Project Roadmap: [Name]
-
-   ## Phases Overview
-   | Phase | Name | Description | Dependencies | Complexity |
-   |-------|------|-------------|-------------|------------|
-   | 1 | ... | ... | None | S/M/L |
-   | 2 | ... | ... | Phase 1 | S/M/L |
-
-   ## Phase Details
-   ### Phase 1: [Name]
-   - **Goal**: [What's true when this phase is done]
-   - **Requirements covered**: REQ-001, REQ-002, ...
-   - **Key deliverables**: [List]
-   - **Success criteria**: [Observable, testable]
-
-   [Repeat per phase]
-
-   ## Requirement Traceability
-   | Requirement | Phase | Status |
-   |------------|-------|--------|
-   | REQ-001 | Phase 1 | Planned |
-   | REQ-002 | Phase 1 | Planned |
-   ```
+2. Create a phased roadmap in `.planning/ROADMAP.md` using the template from `~/.claude/templates/ROADMAP.md`
 3. Ensure 100% requirement coverage — every REQ-ID maps to a phase
 4. Create detailed `.planning/PLAN.md` for Phase 1 (with proper YAML frontmatter)
 5. Subsequent phase plans are created when each phase begins (not all upfront)
@@ -247,7 +194,7 @@ Plan: .planning/PLAN.md (validated)
 
 Ready to execute. Use:
 - /implement — to start Phase 1 execution
-- /plan-status — to check progress
+- /status — to check progress
 - /status — for full dashboard
 ```
 

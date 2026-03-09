@@ -17,7 +17,6 @@
 | `/plan-check [slug]` | Validate plan against codebase reality (project or feature scope) |
 | `/cleanup [scope]` | Post-implementation docs, types, dead code removal |
 | `/status` | Full project dashboard — scans all features, debug sessions, handoffs |
-| `/plan-status` | Planning-specific progress across all scopes |
 | `/debug-status [slug]` | Debug session progress; lists all sessions if no slug given |
 | `/resume-h [name]` | Pick up where last session left off; scans all features and debug sessions |
 | `/handoff [name]` | Save session state; optional name for parallel work contexts |
