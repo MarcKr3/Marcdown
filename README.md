@@ -7,9 +7,10 @@ An agent team framework for Claude Code. Adds structured multi-agent orchestrati
 ## What's Included
 
 - **12 specialized agents** — from `codebase-investigator` to `worktree-merger`, each with defined roles and handoff rules
-- **20 slash commands** — `/plan`, `/implement`, `/debug`, `/handoff`, `/status`, and more
+- **19 slash commands** — `/plan`, `/implement`, `/debug`, `/handoff`, `/status`, and more
 - **Parallel-safe architecture** — feature namespacing + git worktree isolation for concurrent agent work
-- **CLAUDE.md** — core behavioral rules: escalation-first, TDD, systematic debugging, mandatory user approval
+- **CLAUDE.md** — core rules: Fast or Thorough mode, approval before work, questions on design choices, evidence before claims, root cause before fix
+- **`ste-writing` skill** — writes docs, comments and messages in Simplified Technical English, with a linter (`ste-lint.py`)
 - **References & templates** — team framework docs, plan/debug/handoff templates
 
 ## Install
@@ -22,7 +23,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/MarcKr3/marcdown/main/instal
 
 This copies framework files directly into `~/.claude/`. Files with identical names are overwritten. The installer will warn you and prompt for confirmation before proceeding.
 
-**What gets installed:** `agents/`, `commands/`, `references/`, `templates/`, `CLAUDE.md`
+**What gets installed:** `agents/`, `commands/`, `references/`, `templates/`, `skills/ste-writing/`, `CLAUDE.md`
 
 **What is NOT installed:** `README.md`, `CHEATSHEET.md`, `CHEATSHEET.pdf`, `.gitignore`
 

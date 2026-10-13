@@ -23,7 +23,8 @@ Load this file when planning agent team composition. Not needed for simple tasks
 
 | Task Type | Pipeline |
 |-----------|----------|
-| Simple bug fix | investigator -> analyzer -> impl-agent -> test-validator |
+| Trivial or single-file change | None. The orchestrator edits and verifies. |
+| Simple bug fix | impl-agent, test first. Add investigator and analyser only when the files are unknown. |
 | Feature (clear requirements) | investigator -> code-analyser -> planning-agent -> impl-agent -> test-validator -> docs-and-cleanup |
 | Architecture decision | investigator -> code-analyser -> theorycrafting |
 | Complex feature (unclear approach) | investigator -> code-analyser -> theorycrafting -> planning-agent -> impl-agent -> test-validator -> docs-and-cleanup |
@@ -52,7 +53,7 @@ Impl-agents map to **independent sub-tasks**, not phases.
 | Large repetitive task (e.g., 20 files) | Homogeneous team: divide evenly across impl-agents |
 | Tightly coupled changes (shared state, ordering) | Fewer agents, sequential — avoid merge conflicts |
 
-Default to generous parallelism. Respect team size limits (7 single-team, 14 multi-team).
+Run in parallel only work that shares no files and no processes. Respect team size limits (7 single-team, 14 multi-team).
 
 ## Worktree Isolation
 
@@ -112,8 +113,8 @@ After worktree agents complete, deploy the `worktree-merger` agent to integrate 
 | theorycrafting | Multiple approaches, architectural decisions | Approach obvious or user decided |
 | planning-agent | Multi-step implementation needing phasing | Single-file or trivial change |
 | plan-checker | Complex multi-phase plans, unfamiliar codebase | Simple single-phase plans |
-| impl-agent | Any code to write | No code changes needed |
-| test-validator | After any implementation | User explicitly skips validation |
+| impl-agent | Code to write beyond a trivial change | No code changes, or a trivial change the orchestrator makes |
+| test-validator | A change to shared behavior | Trivial change, or a check that can fail already covers it |
 | debugger | Bug reproduction fails, systematic root cause needed | Simple/obvious bugs, typos |
 | docs-and-cleanup | Validated impl needs doc/type updates | Trivial change |
 | team-leader | Multiple parallel teams needed | Single-team work |

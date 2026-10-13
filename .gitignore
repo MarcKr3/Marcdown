@@ -9,12 +9,21 @@
 /plans/
 /plugins/
 /projects/
+/seed-admin/
 /session-env/
+/sessions/
+/state/
 /shell-snapshots/
 /statsig/
 /tasks/
 /telemetry/
 /todos/
+/.last-cleanup
+
+# === Skills: ship only the framework's own skills ===
+/skills/*
+!/skills/ste-writing/
+__pycache__/
 
 # === User-specific files ===
 *.db

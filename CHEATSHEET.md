@@ -1,5 +1,14 @@
 # Marcdown Framework — User Cheatsheet
 
+## Modes
+
+At the start of each conversation, Claude asks which mode applies. The mode stays until you change it.
+
+| Mode | When | What Claude does |
+|------|------|------------------|
+| **Fast** | You test the result on the device or by hand | Makes the change itself, with no agents unless you ask. Runs the build and the unit suite once, at the end. Ends with a checklist for you. |
+| **Thorough** | The change needs more proof | Scales the process to the risk. A trivial change gets no agents. A logic change gets one impl-agent, test first. An unclear cause gets the debugger first. Larger work gets a team from `team-framework.md`. |
+
 ## Slash Commands
 
 | Command | What It Does |
@@ -58,7 +67,7 @@ investigate → analyse → strategize → plan → plan-check → implement →
 Ad-hoc: `debugger` (on failures), `worktree-merger` (after parallel worktree agents).
 Orchestration: `team-leader` (multi-team), `team-communicator` (cross-team).
 
-Not every task uses all agents. The orchestrator selects the minimum set needed.
+Not every task uses all agents. The orchestrator selects the minimum set needed. The orchestrator makes trivial changes itself. In Fast mode, no agents start unless you ask.
 
 ## Key State Files (`.planning/`)
 
@@ -89,7 +98,7 @@ Not every task uses all agents. The orchestrator selects the minimum set needed.
 
 | Path | Purpose |
 |------|---------|
-| `debug/<slug>/DEBUG.md` | Debug session state and hypothesis tracking |
+| `debug/<slug>/DEBUG.md` | Debug session state and hypothesis tracking, when the session can outlive the context |
 
 ## Parallel Execution
 
@@ -103,10 +112,12 @@ After parallel worktree agents finish, the `worktree-merger` agent integrates th
 
 ## Rules You Should Know
 
-- **You approve everything.** No agents spawn without your OK. Every proposal is presented first.
-- **Escalation-first.** Surprises are surfaced to you, never handled silently.
-- **Evidence before "done".** Nothing is marked complete without proof (test run, output check).
-- **Root cause before fix.** Debugging diagnoses first, patches second.
+- **You choose the mode.** Fast or Thorough, asked at the start of each conversation.
+- **You approve everything.** Claude presents a proposal and waits before it starts a plan, writes code or spawns agents.
+- **You make the design choices.** If a design choice is not clearly stated, Claude asks. A design choice changes behavior, appearance, wording or scope. Surprises and plan deviations also come to you.
+- **Evidence before "done".** Nothing is marked complete without a check that can fail.
+- **Root cause before fix.** After two failed fixes, Claude reproduces the fault in a check first.
+- **No commits unless you ask.** Claude also never uses git to discard changes.
 - **Team limits.** Max 7 agents single-team, 14 multi-team. Exceeding requires your explicit approval.
 - **Session management.** Use `/handoff` at end of session, `/resume-h` at start of next. Use `/compact` to free context mid-session without losing state.
 

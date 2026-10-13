@@ -28,11 +28,11 @@ updated: "[date]"
 - **Exit Criteria**: [Testable definition of done]
 - **Risks**: [With mitigations]
 
-## Execution Timeline
+## Execution Timeline (multi-phase plans only)
 [Parallel/sequential visualization]
 
-## Integration Checkpoints
+## Integration Checkpoints (multi-phase plans only)
 [When and how to validate combined work]
 
-## Conflict Zones
+## Conflict Zones (multi-phase plans only)
 [Files touched by multiple phases, resolution strategy]

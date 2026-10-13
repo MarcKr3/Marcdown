@@ -1,66 +1,58 @@
 # General
 
-No Web Queries. Never. User will never instruct Web Query.
+- Do not run web searches. Fetch a URL only when the user gives it.
+- Do not use git to undo changes: no `checkout <file>`, `restore`, `reset --hard`, `clean`, discarding `stash`, or other commands that overwrite the working tree. They destroy uncommitted work. To revert, edit the files by hand and reverse only your own edits. If you do not know which edits are yours, ask.
+- Do not commit unless the user asks.
 
-If user provides URL, Webfetch is allowed.
+# Mode
 
-# Agent Team System
+At the start of each conversation, before the first work step, ask with `AskUserQuestion` which mode applies: **Fast** or **Thorough**. Use that mode for the whole conversation until the user changes it. A subagent does not ask. It uses the mode that its brief names.
 
-## HIGHEST PRIORITY — User Approval Required
+## Fast
 
-NEVER proceed without explicit user approval for: spawning agents, proposing team architectures, starting plans, beginning implementation. ALWAYS present your proposal FIRST and WAIT. This rule is non-negotiable at every point in the conversation — first message or fiftieth.
+The user tests the result on the device or by hand. The goal is a correct change with the shortest wait.
 
-## Pipeline
+- Make the change yourself. Do not spawn agents, run workflows or hold review rounds unless the user asks. This rule overrides any default that starts agents, for example ultracode.
+- Prove the change once, at the end: the build or compile check and the full unit suite, or the quick check of the project. When a rule in the model changes, update or add its unit test in the same change.
+- Do not run mutation, rig batteries, new rig claims, ledgers or red-first reports unless the user asks.
+- End with a short checklist for the user: what to do, and what a pass looks like.
+- Write one checkpoint of five lines or fewer per change.
 
-```
-codebase-investigator -> code-analyser -> theorycrafting -> planning-agent -> plan-checker -> impl-agent -> test-validator -> docs-and-cleanup
-```
+## Thorough
 
-Ad-hoc: debugger (on failures), worktree-merger (after parallel worktree agents). Orchestration: team-leader (multi-team), team-communicator (cross-team).
+Scale the process to the risk:
 
-## Core Rules
+- Trivial or single-file change: edit and verify it yourself, with no agents.
+- Logic change: one impl-agent, test first.
+- Unclear cause: the debugger first.
+- Larger work: choose agents with `~/.claude/references/team-framework.md`.
 
-1. **Escalation-first.** Unforeseen events escalate to user. Never handle surprises autonomously.
-2. **No autonomous spawning.** Every agent beyond approved architecture needs new approval.
-3. **Planning-agent plans. You assign agents.** Separate responsibilities.
-4. **Never passively wait for agents.** Check output actively via `TaskOutput`. Idle waiting = dead state.
-5. **Respect specific agent instructions.** Agent .md files provide role-specific rules. Follow them.
+Validate only a change to shared behavior, and examine that claim, preferably by mutation. Do not repeat checks that the implementer ran. Background agents report when they finish. Do not poll them or read their output files.
 
-For team composition details (pipeline selection, scaling, agent selection tables): read `~/.claude/references/team-framework.md` when planning agent work.
+Write one checkpoint of ten lines or fewer per phase.
 
-## Slash Commands
+# Approval
 
-Available in `~/.claude/commands/`. Key commands: `/new-project`, `/new-feature`, `/plan`, `/implement`, `/debug`, `/handoff`, `/resume-h`, `/status`. Type `/` for full list.
+Present a proposal and wait for approval before you start a plan, write code or spawn agents. One approval covers one change and its agents. In Fast mode, the proposal is a few lines.
 
-## Auto-Triggering Micro-Skills
+Do not interpret the user's request. If a design choice is not clearly stated, ask with `AskUserQuestion` before you continue. A design choice changes behavior, appearance, wording or scope. Ask the same way before any deviation from a plan. Ask also about a surprise that changes scope or contradicts a user ruling.
 
-Always-on quality standards. Apply automatically without being asked.
+# Quality
 
-**Verification Before Completion** — Never claim done without fresh evidence. Run proof command, read output, confirm, THEN report.
+1. **Evidence before claims.** Run the check and read the output before you report. The check must be able to fail. A visual claim needs a rendering check, or in Fast mode the user's device check.
+2. **Root cause before fix.** After two failed fixes, reproduce the fault in a check first.
+3. **Test first** (Thorough). Write the test and see it fail, then write the code. Where no unit test reaches, make another check fail first. In Fast mode, update the tests in the same change instead.
+4. **Scope before code.** For non-trivial work, state what you build, where, and what can break.
+5. **Review before you report.** Read the request again and examine the diff.
 
-**Test-Driven Development** — When implementing features/bugfixes: write failing test FIRST, watch it fail, write minimal code to pass. Exceptions only with user's explicit permission.
+# Records
 
-**Systematic Debugging** — When any bug/error is encountered: root cause investigation → pattern analysis → hypothesis test → implementation. No fixes before diagnosis. Three failed attempts → escalate.
+Record a deviation only after the user approves it. Archive completed phases. Keep test output out of git. Comments give the reason in one or two sentences.
 
-**Pre-Implementation Scope Check** — Before non-trivial code: state what you're building, where it goes, how it integrates, what could break. Skip for trivial changes.
+# Writing
 
-**Self-Review Before Done** — Before reporting completion: re-read directive, diff changes, check for debug artifacts, verify imports, confirm style match. Fix gaps before reporting.
+For docs, comments and messages, use the `ste-writing` skill and lint with `~/.claude/skills/ste-writing/ste-lint.py`.
 
-## Context Management
+# Context
 
-`/compact` = free context space, stay in session. `/handoff` → new session = full behavioral reset.
-
-Use `/handoff` when: behavioral drift detected, end of session, switching tasks.
-Use `/compact` when: context large but work flowing fine.
-
-## INVARIANTS
-
-These apply at ALL times regardless of conversation length or context pressure.
-
-1. No agents without user-approved architecture
-2. Escalate surprises — never handle autonomously
-3. Evidence before claims — never say "done" without proof
-4. Root cause before fix — never patch without diagnosis
-5. Scope before code — never implement without confirming what
-6. Review before reporting — never skip self-review
-7. No autonomous spawning — every agent needs approval
+`/compact` frees space. `/handoff` and a new session reset behavior: use it at the end of a session, on a task switch, or when behavior drifts.

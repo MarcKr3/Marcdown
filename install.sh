@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="https://github.com/OWNER/marcdown.git"
+REPO="https://github.com/MarcKr3/Marcdown.git"
 TARGET="$HOME/.claude"
 MANIFEST="$TARGET/.marcdown-manifest"
 
 # Framework items to install
-DIRS=(agents commands references templates)
+DIRS=(agents commands references templates skills)
 ROOT_FILES=(CLAUDE.md)
 
 # --- Uninstall mode ---
@@ -14,7 +14,7 @@ if [[ "${1:-}" == "--uninstall" ]]; then
   if [[ ! -f "$MANIFEST" ]]; then
     echo "No Marcdown installation found (missing manifest)."
     echo "If you installed manually, remove these from $TARGET:"
-    echo "  agents/ commands/ references/ templates/ CLAUDE.md"
+    echo "  agents/ commands/ references/ templates/ skills/ste-writing/ CLAUDE.md"
     exit 1
   fi
 
@@ -111,4 +111,4 @@ echo ""
 echo "Installed $COUNT files into $TARGET."
 echo ""
 echo "Update:    re-run this script"
-echo "Uninstall: bash <(curl -fsSL https://raw.githubusercontent.com/OWNER/marcdown/main/install.sh) --uninstall"
+echo "Uninstall: bash <(curl -fsSL https://raw.githubusercontent.com/MarcKr3/Marcdown/main/install.sh) --uninstall"
