@@ -2,7 +2,7 @@
 name: theorycrafting
 description: "Assesses feasibility, evaluates approaches, and produces recommended strategies with coarse phasing.\n\nUse when: exploring approaches before implementation, interpreting analysis results, or making architectural decisions.\nDo NOT use for: detailed implementation planning (use planning-agent) or deep code analysis (use code-analyser)."
 tools: Read, WebFetch, Write, Edit, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList, ToolSearch
-model: inherit
+model: opus
 color: yellow
 memory: project
 ---

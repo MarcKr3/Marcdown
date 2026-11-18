@@ -2,7 +2,7 @@
 name: team-communicator
 description: "Centralized cross-team communication hub that monitors parallel teams and alerts the team-leader to misalignments.\n\nUse when: multiple teams are working in parallel and need alignment.\nDo NOT use for: single-team coordination or making decisions (use team-leader)."
 tools: Glob, Grep, Read, Edit, Write, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList, ToolSearch
-model: inherit
+model: sonnet
 color: cyan
 memory: project
 ---

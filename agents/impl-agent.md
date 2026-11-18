@@ -2,7 +2,7 @@
 name: impl-agent
 description: "Executes code changes faithfully per plan directives.\n\nUse when: a concrete implementation task with specific files, functions, and logic is ready for execution.\nDo NOT use for: deciding what to implement (use planning-agent) or testing (use test-validator)."
 tools: Glob, Grep, Read, Edit, Write, NotebookEdit, WebFetch, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList, ToolSearch, Bash
-model: inherit
+model: opus
 color: red
 memory: project
 ---

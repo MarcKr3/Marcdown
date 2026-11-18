@@ -1,0 +1,629 @@
+#!/usr/bin/env bash
+# board: the shared agent state of one project, kept on branches of the project's own git remote.
+# Part of Marcdown. Runs on macOS, Linux and Windows (Git Bash).
+#
+#   board setup [--no-autosync] [--share-notes | --keep-local]
+#                           on this computer: check out the board branches, link the Claude memory folder
+#                           of each checkout and worktree to the shared memory, start the 2-minute sync
+#   board sync              commit and push local board edits, pull the edits of others (the job runs this)
+#   board status            the job, the memory links, the last sync, and anything stuck
+#   board path next|memory|computer|agents|mailbox <name>
+#                           where a board folder is on this computer
+#   board mailbox <name>    open or join the mailbox branch <prefix><name> on this computer
+#   board check             memory health: broken [[links]], index lines without a node
+#   board uninstall         stop the background sync on this computer (files and links stay)
+#
+# Run each command inside a checkout of the project (any worktree), or give `--project <dir>`.
+# Settings live in the local git config of the project, never in a committed file:
+#   git config board.remote origin        git config board.next roadmap
+#   git config board.agents agents        git config board.mailboxPrefix mailbox/
+
+set -u
+# Background jobs (launchd, Task Scheduler, cron) start without the PATH of a login shell. On Windows that
+# removes the Git Bash tools (dirname, mkdir, sed). Put the usual places first.
+export PATH="/usr/bin:/bin:/usr/sbin:/sbin:/mingw64/bin:/usr/local/bin:/opt/homebrew/bin:$PATH:/c/Windows/System32"
+export GIT_TERMINAL_PROMPT=0
+NET="-c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30"
+
+SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/$(basename "${BASH_SOURCE[0]}")"
+HOME_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+TEMPLATES="$HOME_DIR/templates/board"
+
+die() { echo "board: $*" >&2; exit 1; }
+say() { echo "$*"; }
+
+os_kind() {
+  case "${BOARD_OS:-$(uname -s)}" in
+    Darwin) echo mac ;;
+    MINGW*|MSYS*|CYGWIN*|Windows*) echo windows ;;
+    *) echo linux ;;
+  esac
+}
+
+host_name() { hostname 2>/dev/null | cut -d. -f1 | tr -c 'A-Za-z0-9\n' '-'; }
+
+# ---------- project and configuration ----------
+
+PROJECT=""
+parse_project() {
+  local args=() a
+  while [ $# -gt 0 ]; do
+    a="$1"; shift
+    if [ "$a" = "--project" ]; then PROJECT="${1:-}"; shift; else args+=("$a"); fi
+  done
+  REST=("${args[@]+"${args[@]}"}")
+}
+
+# Main worktree of the project (the same for every branch and every linked worktree).
+project_root() {
+  local start="${PROJECT:-$PWD}" common
+  common="$(git -C "$start" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" \
+    || die "not inside a git checkout ($start)"
+  case "$common" in
+    */.git) dirname "$common" ;;
+    *) git -C "$start" rev-parse --show-toplevel ;;
+  esac
+}
+
+git_common() { git -C "$(project_root)" rev-parse --path-format=absolute --git-common-dir; }
+state_dir() { local d; d="$(git_common)" && [ -n "$d" ] || return 1; mkdir -p "$d/board" || return 1; echo "$d/board"; }
+
+conf() { git -C "$(project_root)" config --get "board.$1" 2>/dev/null || echo "$2"; }
+load_conf() {
+  REMOTE="$(conf remote origin)"
+  NEXT_BRANCH="$(conf next roadmap)"
+  AGENTS_BRANCH="$(conf agents agents)"
+  MAILBOX_PREFIX="$(conf mailboxPrefix mailbox/)"
+}
+
+project_name() { basename "$(project_root)"; }
+
+# Claude Code keeps the memory of a folder in ~/.claude/projects/<path, each other character as '-'>/memory.
+# Each worktree is a separate folder, so each worktree has its own memory folder.
+claude_memory_dir() { # [folder]
+  local root="${1:-$(project_root)}" slug
+  if [ "$(os_kind)" = windows ] && command -v cygpath >/dev/null 2>&1; then root="$(cygpath -m "$root")"; fi
+  slug="$(printf '%s' "$root" | sed 's/[^A-Za-z0-9]/-/g')"
+  echo "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/$slug/memory"
+}
+
+# ---------- worktrees of the board branches ----------
+
+# Path of the worktree that has <branch> checked out, if any.
+worktree_of() {
+  local want="refs/heads/$1" path="" line
+  while IFS= read -r line; do
+    case "$line" in
+      "worktree "*) path="${line#worktree }" ;;
+      "branch $want") echo "$path"; return 0 ;;
+    esac
+  done < <(git -C "$(project_root)" worktree list --porcelain)
+  return 1
+}
+
+board_branches() {
+  local line
+  echo "$NEXT_BRANCH"; echo "$AGENTS_BRANCH"
+  while IFS= read -r line; do
+    case "$line" in "branch refs/heads/$MAILBOX_PREFIX"*) echo "${line#branch refs/heads/}" ;; esac
+  done < <(git -C "$(project_root)" worktree list --porcelain)
+}
+
+is_board_branch() { # branch
+  [ "$1" = "$NEXT_BRANCH" ] || [ "$1" = "$AGENTS_BRANCH" ] || case "$1" in "$MAILBOX_PREFIX"*) true ;; *) false ;; esac
+}
+
+# Worktrees of the project that hold app code (not board branches), one path per line.
+code_worktrees() {
+  local path="" line branch
+  while IFS= read -r line; do
+    case "$line" in
+      "worktree "*) path="${line#worktree }"; branch="" ;;
+      "branch refs/heads/"*) branch="${line#branch refs/heads/}" ;;
+      "prunable"*|"bare") path="" ;;
+      "") [ -n "$path" ] && { [ -n "$branch" ] && is_board_branch "$branch" || echo "$path"; }; path="" ;;
+    esac
+  done < <(git -C "$(project_root)" worktree list --porcelain; echo)
+}
+
+default_dir_for() {
+  local root base
+  root="$(project_root)"
+  base="$(printf '%s' "$1" | sed 's#/#-#g')"
+  echo "$(dirname "$root")/$(basename "$root").$base"
+}
+
+write_template() { # kind dir branch
+  local kind="$1" dir="$2" branch="$3" name; name="$(project_name)"
+  case "$kind" in
+    next)
+      mkdir -p "$dir/memory/computers" "$dir/handoffs"; : > "$dir/memory/computers/.keep"; : > "$dir/handoffs/.keep"
+      [ -e "$dir/README.md" ] || sed "s#{{PROJECT}}#$name#g; s#{{BRANCH}}#$branch#g" "$TEMPLATES/next-README.md" > "$dir/README.md"
+      [ -e "$dir/NEXT.md" ] || sed "s#{{PROJECT}}#$name#g" "$TEMPLATES/NEXT.md" > "$dir/NEXT.md"
+      [ -e "$dir/memory/MEMORY.md" ] || sed "s#{{PROJECT}}#$name#g" "$TEMPLATES/MEMORY.md" > "$dir/memory/MEMORY.md" ;;
+    agents)
+      mkdir -p "$dir/pings"; : > "$dir/pings/.keep"
+      [ -e "$dir/README.md" ] || sed "s#{{PROJECT}}#$name#g; s#{{PREFIX}}#$MAILBOX_PREFIX#g" "$TEMPLATES/agents-README.md" > "$dir/README.md" ;;
+    mailbox)
+      mkdir -p "$dir/messages"; : > "$dir/messages/.keep"
+      [ -e "$dir/README.md" ] || sed "s#{{BRANCH}}#$branch#g" "$TEMPLATES/mailbox-README.md" > "$dir/README.md" ;;
+  esac
+}
+
+# Make sure <branch> is checked out somewhere on this computer; print where.
+ensure_board() { # kind branch
+  local kind="$1" branch="$2" root dir
+  root="$(project_root)"
+  if dir="$(worktree_of "$branch")"; then echo "$dir"; return 0; fi
+  dir="$(default_dir_for "$branch")"
+  [ -e "$dir" ] && die "$dir exists but is not a checkout of $branch; move it away or check out $branch there"
+  git -C "$root" $NET fetch -q "$REMOTE" "refs/heads/$branch:refs/remotes/$REMOTE/$branch" >/dev/null 2>&1 || true
+  if git -C "$root" rev-parse -q --verify "refs/heads/$branch" >/dev/null; then
+    git -C "$root" worktree add -q "$dir" "$branch" >&2 || die "could not check out $branch"
+  elif git -C "$root" rev-parse -q --verify "refs/remotes/$REMOTE/$branch" >/dev/null; then
+    git -C "$root" worktree add -q --track -b "$branch" "$dir" "$REMOTE/$branch" >&2 || die "could not check out $branch"
+  else
+    # A new board branch: its own history, nothing from the main branch.
+    git -C "$root" worktree add -q --orphan -b "$branch" "$dir" >&2 || die "could not create $branch (needs git 2.42 or newer)"
+    write_template "$kind" "$dir" "$branch"
+    git -C "$dir" add -A 2>/dev/null && git -C "$dir" commit -q -m "$branch: start the board (board setup)" >&2
+    git -C "$dir" $NET push -q -u "$REMOTE" "$branch" >&2 || echo "board: $branch created locally; push failed, sync will retry" >&2
+  fi
+  echo "$dir"
+}
+
+# Stop when an existing board checkout is not in step with the remote. The first sync would otherwise push
+# old local commits, or rebase them over many remote commits, without anyone looking at them.
+check_fresh() { # dir branch
+  local dir="$1" branch="$2" ahead behind dirty
+  git -C "$(project_root)" $NET fetch -q "$REMOTE" "refs/heads/$branch:refs/remotes/$REMOTE/$branch" >/dev/null 2>&1 \
+    || { say "board: could not fetch $branch; freshness not checked"; return 0; }
+  git -C "$dir" rev-parse -q --verify "refs/remotes/$REMOTE/$branch" >/dev/null || return 0
+  ahead="$(git -C "$dir" rev-list --count "$REMOTE/$branch..HEAD")"
+  behind="$(git -C "$dir" rev-list --count "HEAD..$REMOTE/$branch")"
+  dirty="$(git -C "$dir" status --porcelain | head -1)"
+  if [ "$ahead" != 0 ] || [ "$behind" != 0 ] || [ -n "$dirty" ]; then
+    say "board: $dir ($branch) is not in step with $REMOTE: $ahead commit(s) ahead, $behind behind$([ -n "$dirty" ] && echo ', with uncommitted changes')."
+    [ "$ahead" != 0 ] && git -C "$dir" log --oneline "$REMOTE/$branch..HEAD" | sed 's/^/  local only: /'
+    say "Bring it in step first, for example: git -C '$dir' pull --rebase && git -C '$dir' push"
+    say "Then run 'board setup' again."
+    exit 4
+  fi
+}
+
+# Stop when another job already syncs this board folder (for example an older sync.sh job).
+check_old_jobs() { # dir
+  local dir="$1" found="" p
+  case "$(os_kind)" in
+    mac)
+      for p in "${BOARD_LAUNCH_AGENTS:-$HOME/Library/LaunchAgents}"/*.plist; do
+        [ -f "$p" ] || continue
+        case "$(basename "$p")" in run.board.*) continue ;; esac
+        grep -qF "$dir" "$p" 2>/dev/null && found="$found $p"
+      done ;;
+    windows)
+      MSYS2_ARG_CONV_EXCL='*' schtasks.exe /Query /FO LIST /V 2>/dev/null | grep -F "$(cygpath -w "$dir")" | grep -qv 'board\\' && found=" (a scheduled task; see Task Scheduler)" ;;
+  esac
+  [ -n "$found" ] || return 0
+  say "board: another job already syncs $dir:"
+  for p in $found; do say "  $p"; done
+  say "Stop it first (macOS: launchctl bootout gui/\$(id -u) <plist>, then remove the plist). Then run 'board setup' again."
+  exit 5
+}
+
+# ---------- memory links ----------
+
+is_link() { [ -L "$1" ] || { [ "$(os_kind)" = windows ] && fsutil reparsepoint query "$(cygpath -w "$1")" >/dev/null 2>&1; }; }
+
+make_link() { # link target
+  if [ "$(os_kind)" = windows ]; then
+    MSYS2_ARG_CONV_EXCL='*' cmd.exe /c mklink /J "$(cygpath -w "$1")" "$(cygpath -w "$2")" >/dev/null
+  else
+    ln -s "$2" "$1"
+  fi
+}
+
+remove_link() { rm -f "$1" 2>/dev/null || rmdir "$1" 2>/dev/null || cmd.exe /c rmdir "$(cygpath -w "$1")" >/dev/null 2>&1; }
+
+same_dir() { [ "$(cd "$1" 2>/dev/null && pwd -P)" = "$(cd "$2" 2>/dev/null && pwd -P)" ]; }
+
+# Notes in <from> that the board does not have, or has with other text. One relative path per line.
+notes_to_share() { # from to
+  local from="$1" to="$2" f rel
+  while IFS= read -r f; do
+    rel="${f#"$from"/}"
+    [ "$rel" = MEMORY.md ] && continue
+    if [ ! -e "$to/$rel" ] || ! cmp -s "$f" "$to/$rel"; then echo "$rel"; fi
+  done < <(find "$from" -type f -name '*.md' | sort)
+}
+
+# Copy notes from a local memory folder into the board, never overwriting a different note.
+fold_memory() { # from to
+  local from="$1" to="$2" rel dest host line target added=0 kept=0
+  host="$(host_name)"
+  while IFS= read -r rel; do
+    dest="$to/$rel"
+    if [ ! -e "$dest" ]; then mkdir -p "$(dirname "$dest")"; cp "$from/$rel" "$dest"; added=$((added + 1))
+    else cp "$from/$rel" "${dest%.md}.from-$host.md"; kept=$((kept + 1)); fi
+  done < <(notes_to_share "$from" "$to")
+  if [ -f "$from/MEMORY.md" ]; then
+    touch "$to/MEMORY.md"
+    while IFS= read -r line; do
+      target="$(printf '%s' "$line" | sed -n 's/.*](\([^)]*\.md\)).*/\1/p')"
+      [ -n "$target" ] || continue
+      grep -qF "($target)" "$to/MEMORY.md" || printf '%s\n' "$line" >> "$to/MEMORY.md"
+    done < "$from/MEMORY.md"
+  fi
+  say "memory: $added note(s) shared from this computer; $kept differing note(s) kept beside the board's as *.from-$host.md"
+}
+
+# Link one Claude memory folder to the board memory.
+# mode: ask (stop and list the notes when local notes would be shared), share, keep (keep them local, unshared),
+#       skip (never touch a folder with notes; used by the job).
+# Returns 0 when linked, 3 when it stopped because of local notes.
+link_memory() { # memory-folder board-memory mode
+  local mem="$1" target="$2" mode="$3" backup pending
+  mkdir -p "$target" "$(dirname "$mem")"
+  if is_link "$mem"; then
+    same_dir "$mem" "$target" && return 0
+    remove_link "$mem"
+  elif [ -d "$mem" ]; then
+    if [ -z "$(ls -A "$mem" 2>/dev/null)" ]; then
+      rmdir "$mem"
+    else
+      pending="$(notes_to_share "$mem" "$target")"
+      if [ -n "$pending" ]; then
+        case "$mode" in
+          share) fold_memory "$mem" "$target" ;;
+          keep) say "memory: $(printf '%s\n' "$pending" | wc -l | tr -d ' ') local note(s) not shared" ;;
+          skip) return 3 ;;
+          *)
+            say "memory: $mem has notes that the board does not have:"
+            printf '%s\n' "$pending" | sed 's/^/  /'
+            say "Run 'board setup --share-notes' to share them with everyone who has the repository,"
+            say "or 'board setup --keep-local' to keep them on this computer only (in a backup folder)."
+            return 3 ;;
+        esac
+      fi
+      backup="$mem.before-board-$(date +%Y%m%d-%H%M%S)"
+      mv "$mem" "$backup" || die "could not move $mem aside"
+      say "memory: the old folder is kept as $backup"
+    fi
+  fi
+  make_link "$mem" "$target" || die "could not link $mem to $target"
+  say "memory: $mem -> $target"
+}
+
+# Link the memory folder of every code worktree. A folder with unshared notes stays as it is and is listed.
+link_worktrees() { # board-memory mode
+  local target="$1" mode="$2" wt mem sd rc
+  sd="$(state_dir)"; : > "$sd/unlinked"
+  while IFS= read -r wt; do
+    mem="$(claude_memory_dir "$wt")"
+    is_link "$mem" && same_dir "$mem" "$target" && continue
+    link_memory "$mem" "$target" "$mode" >/dev/null; rc=$?
+    [ "$rc" = 3 ] && echo "$wt" >> "$sd/unlinked"
+  done < <(code_worktrees)
+  return 0
+}
+
+# ---------- sync ----------
+
+notify() { # dir message
+  local sd; sd="$(state_dir)"
+  printf '%s %s: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" "$2" | tee -a "$sd/sync.log" > "$sd/stuck"
+  case "$(os_kind)" in
+    mac) osascript -e "display notification \"$2\" with title \"board: $(project_name)\"" >/dev/null 2>&1 || true ;;
+  esac
+}
+
+log() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$(state_dir)/sync.log"; }
+
+sync_one() { # dir branch ; returns 1 when stuck, 2 when the push failed
+  local dir="$1" branch="$2" host tries=0
+  host="$(hostname 2>/dev/null | cut -d. -f1)"
+  ( cd "$dir" || exit 1
+    [ "$(git branch --show-current)" = "$branch" ] || { notify "$dir" "not on branch $branch"; exit 1; }
+    commit() {
+      git add -A -- ':(glob)**/*.md' >/dev/null 2>&1; git add -A -- ':(glob)**/.keep' >/dev/null 2>&1; git add -u >/dev/null 2>&1
+      git diff --cached --quiet || git commit -q -m "$branch: update (board sync from $host)" || exit 1
+    }
+    commit
+    git $NET fetch -q "$REMOTE" "refs/heads/$branch:refs/remotes/$REMOTE/$branch" 2>/dev/null || log "$branch: fetch failed (offline?); will retry"
+    if git rev-parse -q --verify "refs/remotes/$REMOTE/$branch" >/dev/null; then
+      until git rebase -q "$REMOTE/$branch" >/dev/null 2>&1; do
+        if [ -d "$(git rev-parse --git-path rebase-merge)" ] || [ -d "$(git rev-parse --git-path rebase-apply)" ]; then
+          git rebase --abort >/dev/null 2>&1 || true
+          notify "$dir" "$branch conflicts with a change on $REMOTE. The local edit is committed in $dir, not pushed. Ask an agent to resolve it."
+          exit 1
+        fi
+        tries=$((tries + 1)); [ "$tries" -ge 3 ] && { log "$branch: busy; will retry"; exit 0; }
+        sleep 2; commit
+      done
+    fi
+    [ "$branch" = "$AGENTS_BRANCH" ] && prune_pings
+    if ! git rev-parse -q --verify "refs/remotes/$REMOTE/$branch" >/dev/null \
+       || [ "$(git rev-list --count "$REMOTE/$branch..HEAD")" -gt 0 ]; then
+      if git $NET push -q "$REMOTE" "HEAD:refs/heads/$branch" 2>>"$(state_dir)/sync.log"; then
+        log "$branch: pushed $(git rev-parse --short HEAD)"
+        git rev-parse -q --verify "refs/remotes/$REMOTE/$branch" >/dev/null || git branch -q -u "$REMOTE/$branch" 2>/dev/null
+      else
+        log "$branch: push failed; will retry"; exit 2
+      fi
+    fi
+  )
+}
+
+# ---------- stale pings and inactive mailbox members ----------
+
+STALE_SECONDS=$((24 * 3600))
+
+# Seconds since <path> last changed on the current branch of the working folder (empty if never committed).
+age_of() { local t; t="$(git log -1 --format=%ct -- "$@" 2>/dev/null)"; [ -n "$t" ] && echo $(( $(date +%s) - t )); }
+
+# In the agents worktree: remove the pings that did not change for 24 hours, in one commit.
+prune_pings() {
+  local f age gone=""
+  for f in pings/*.md; do
+    [ -f "$f" ] || continue
+    git diff --quiet HEAD -- "$f" 2>/dev/null || continue
+    age="$(age_of "$f")" || continue
+    [ -n "$age" ] && [ "$age" -gt "$STALE_SECONDS" ] || continue
+    git rm -q -- "$f" && gone="$gone $(basename "$f" .md)"
+  done
+  [ -n "$gone" ] || return 0
+  git commit -q -m "$AGENTS_BRANCH: remove pings unchanged for 24 hours:$gone (board sync)" && log "$AGENTS_BRANCH: removed stale pings:$gone"
+}
+
+# Agent names with a ping on the board (old timestamped ping names count by their agent part).
+active_agents() {
+  local dir f; dir="$(worktree_of "$AGENTS_BRANCH")" || return 1
+  for f in "$dir"/pings/*.md; do
+    [ -f "$f" ] && basename "$f" .md | sed -E 's/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{4}Z-//'
+  done
+  return 0
+}
+
+# A members line without the inactive members; prints nothing when no member goes.
+pruned_members() { # members-line branch-ref active-list
+  local line="$1" ref="$2" active="$3" m kept="" dropped="" t
+  for m in $(printf '%s' "${line#Members:}" | tr ',' ' '); do
+    case "$m" in "<"*|"{"*) kept="$kept, $m"; continue ;; esac
+    if printf '%s\n' "$active" | grep -qxF "$m"; then kept="$kept, $m"; continue; fi
+    t="$(git -C "$(project_root)" log -1 --format=%ct "$ref" -- "messages/*-$m.md" 2>/dev/null)"
+    if [ -n "$t" ] && [ $(( $(date +%s) - t )) -le "$STALE_SECONDS" ]; then kept="$kept, $m"; else dropped="$dropped $m"; fi
+  done
+  [ -n "$dropped" ] || return 0
+  printf 'Members: %s\n%s\n' "${kept#, }" "$dropped"
+}
+
+# Remove the members with no ping and no message for 24 hours from the Members line of each mailbox.
+prune_mailboxes() {
+  local root active ref branch line result newline dropped dir tmp
+  root="$(project_root)"
+  active="$(active_agents)" || return 0
+  git -C "$root" $NET fetch -q "$REMOTE" "+refs/heads/$MAILBOX_PREFIX*:refs/remotes/$REMOTE/$MAILBOX_PREFIX*" 2>/dev/null || return 0
+  while IFS= read -r ref; do
+    branch="${ref#refs/remotes/$REMOTE/}"
+    line="$(git -C "$root" show "$ref:README.md" 2>/dev/null | grep -m1 '^Members:')" || continue
+    result="$(pruned_members "$line" "$ref" "$active")"
+    [ -n "$result" ] || continue
+    newline="$(printf '%s\n' "$result" | sed -n 1p)"; dropped="$(printf '%s\n' "$result" | sed -n 2p)"
+    if dir="$(worktree_of "$branch")"; then
+      sync_one "$dir" "$branch" >/dev/null 2>&1 || continue
+      tmp=""
+    else
+      tmp="$(state_dir)/mailbox-edit"; rm -rf "$tmp"; git -C "$root" worktree prune
+      git -C "$root" worktree add -q --detach "$tmp" "$ref" 2>/dev/null || continue
+      dir="$tmp"
+    fi
+    ( cd "$dir" && awk -v n="$newline" '!done && /^Members:/ { print n; done = 1; next } { print }' README.md > README.md.new \
+        && mv README.md.new README.md \
+        && git commit -q -am "$branch: off the members line after 24 hours without a ping or message:$dropped (board sync)" \
+        && git $NET push -q "$REMOTE" "HEAD:refs/heads/$branch" 2>/dev/null ) \
+      && log "$branch: inactive members removed:$dropped" \
+      || log "$branch: inactive members not removed yet; will retry"
+    [ -n "$tmp" ] && git -C "$root" worktree remove --force "$tmp" >/dev/null 2>&1
+  done < <(git -C "$root" for-each-ref --format='%(refname)' "refs/remotes/$REMOTE/$MAILBOX_PREFIX")
+}
+
+cmd_sync() {
+  load_conf
+  local sd branch dir failed=0 stuck=0 rc next
+  sd="$(state_dir)" && [ -d "$sd" ] || die "cannot reach the git folder of $(project_root 2>/dev/null || echo "the project")"; LOCK="$sd/sync.lock"
+  if ! mkdir "$LOCK" 2>/dev/null; then
+    [ -n "$(find "$LOCK" -maxdepth 0 -mmin +10 2>/dev/null)" ] || exit 0
+    rm -rf "$LOCK"; mkdir "$LOCK" || exit 0
+  fi
+  trap 'rm -rf "$LOCK"' EXIT
+  while IFS= read -r branch; do
+    dir="$(worktree_of "$branch")" || continue
+    sync_one "$dir" "$branch"; rc=$?
+    [ "$rc" = 1 ] && stuck=1
+    [ "$rc" = 2 ] && failed=1
+  done < <(board_branches | sort -u)
+  [ "$stuck" = 0 ] && [ "$failed" = 0 ] && prune_mailboxes
+  # New worktrees get the shared memory too. Only after setup linked the main checkout.
+  if next="$(worktree_of "$NEXT_BRANCH")" && is_link "$(claude_memory_dir)"; then link_worktrees "$next/memory" skip; fi
+  if [ "$failed" = 1 ]; then
+    echo $(( $(cat "$sd/push-fails" 2>/dev/null || echo 0) + 1 )) > "$sd/push-fails"
+    [ "$(cat "$sd/push-fails")" -ge 5 ] && notify "$(project_root)" "board edits have not reached $REMOTE for about 10 minutes (push keeps failing)"
+  else
+    rm -f "$sd/push-fails"
+  fi
+  [ "$stuck" = 0 ] && [ "$failed" = 0 ] && rm -f "$sd/stuck"
+  [ "$stuck" = 0 ]
+}
+
+# ---------- background job ----------
+
+job_id() { printf '%s' "$(project_root)" | sed 's/[^A-Za-z0-9]/-/g; s/^-*//' | cut -c1-80; }
+
+install_job() {
+  local id root sd
+  id="$(job_id)"; root="$(project_root)"; sd="$(state_dir)"
+  case "$(os_kind)" in
+    mac)
+      local plist="${BOARD_LAUNCH_AGENTS:-$HOME/Library/LaunchAgents}/run.board.$id.plist"
+      mkdir -p "$(dirname "$plist")"
+      cat > "$plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>run.board.$id</string>
+  <key>ProgramArguments</key><array><string>/bin/bash</string><string>$SELF</string><string>sync</string><string>--project</string><string>$root</string></array>
+  <key>EnvironmentVariables</key><dict><key>PATH</key><string>/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin</string></dict>
+  <key>StartInterval</key><integer>120</integer>
+  <key>RunAtLoad</key><true/>
+  <key>StandardErrorPath</key><string>$sd/last-run.log</string>
+</dict></plist>
+EOF
+      launchctl bootout "gui/$(id -u)/run.board.$id" >/dev/null 2>&1 || true
+      launchctl bootstrap "gui/$(id -u)" "$plist" || die "launchd refused the job"
+      say "sync: launchd job run.board.$id, every 2 minutes" ;;
+    windows)
+      local cmdfile bash_w
+      cmdfile="$sd/job.cmd"
+      bash_w="$(cygpath -w "$(command -v bash)")"
+      # The output of the last run stays beside the job file, for `status` and for finding faults.
+      printf '@echo off\r\n"%s" "%s" sync --project "%s" > "%s" 2>&1\r\n' \
+        "$bash_w" "$(cygpath -w "$SELF")" "$(cygpath -w "$root")" "$(cygpath -w "$sd/last-run.log")" > "$cmdfile"
+      # conhost --headless runs it without a window every 2 minutes.
+      MSYS2_ARG_CONV_EXCL='*' schtasks.exe /Create /F /SC MINUTE /MO 2 /TN "board\\$id" \
+        /TR "conhost.exe --headless \"$(cygpath -w "$cmdfile")\"" >/dev/null || die "Task Scheduler refused the job"
+      say "sync: scheduled task board\\$id, every 2 minutes" ;;
+    *)
+      say "sync: no background job on Linux; add this line with 'crontab -e':"
+      say "*/2 * * * * $SELF sync --project '$root'" ;;
+  esac
+}
+
+cmd_uninstall() {
+  local id; id="$(job_id)"
+  case "$(os_kind)" in
+    mac) launchctl bootout "gui/$(id -u)/run.board.$id" >/dev/null 2>&1 || true
+         rm -f "${BOARD_LAUNCH_AGENTS:-$HOME/Library/LaunchAgents}/run.board.$id.plist" ;;
+    windows) MSYS2_ARG_CONV_EXCL='*' schtasks.exe /Delete /F /TN "board\\$id" >/dev/null 2>&1 || true ;;
+  esac
+  say "background sync stopped for $(project_root) (board folders and memory links stay)"
+}
+
+job_state() {
+  local id; id="$(job_id)"
+  case "$(os_kind)" in
+    mac) launchctl print "gui/$(id -u)/run.board.$id" >/dev/null 2>&1 && echo "running (launchd)" || echo "not installed" ;;
+    windows) MSYS2_ARG_CONV_EXCL='*' schtasks.exe /Query /TN "board\\$id" >/dev/null 2>&1 && echo "running (Task Scheduler)" || echo "not installed" ;;
+    *) crontab -l 2>/dev/null | grep -q "board sync" && echo "in crontab" || echo "not installed" ;;
+  esac
+}
+
+# ---------- commands ----------
+
+cmd_setup() {
+  local autosync=1 mode=ask a next agents rc
+  for a in "${REST[@]+"${REST[@]}"}"; do
+    case "$a" in
+      --no-autosync) autosync=0 ;;
+      --share-notes) mode=share ;;
+      --keep-local) mode=keep ;;
+    esac
+  done
+  load_conf
+  git -C "$(project_root)" remote get-url "$REMOTE" >/dev/null 2>&1 || die "this project has no '$REMOTE' remote; the board lives on the project's own remote"
+  if dir="$(worktree_of "$NEXT_BRANCH")"; then check_old_jobs "$dir"; check_fresh "$dir" "$NEXT_BRANCH"; fi
+  if dir="$(worktree_of "$AGENTS_BRANCH")"; then check_fresh "$dir" "$AGENTS_BRANCH"; fi
+  next="$(ensure_board next "$NEXT_BRANCH")" || exit 1
+  agents="$(ensure_board agents "$AGENTS_BRANCH")" || exit 1
+  say "board: $next ($NEXT_BRANCH)"
+  say "pings: $agents ($AGENTS_BRANCH)"
+  link_memory "$(claude_memory_dir)" "$next/memory" "$mode"; rc=$?
+  [ "$rc" = 3 ] && exit 3
+  link_worktrees "$next/memory" "$mode"
+  [ -s "$(state_dir)/unlinked" ] && { say "memory: not linked yet, local notes in:"; sed 's/^/  /' "$(state_dir)/unlinked"; }
+  if [ "$autosync" = 1 ]; then install_job; else say "sync: not installed (--no-autosync); run 'board sync' after edits"; fi
+  cmd_sync && say "first sync done" || say "first sync stuck: see 'board status'"
+}
+
+cmd_status() {
+  load_conf
+  local sd branch dir n
+  sd="$(state_dir)"
+  say "project:  $(project_root)"
+  say "job:      $(job_state)"
+  say "memory:   $(claude_memory_dir)$(is_link "$(claude_memory_dir)" && echo ' (linked to the board)' || echo ' (NOT linked)')"
+  n="$(code_worktrees | wc -l | tr -d ' ')"
+  if [ -s "$sd/unlinked" ]; then
+    say "worktrees: $n; not linked because they have local notes:"; sed 's/^/  /' "$sd/unlinked"
+  else
+    say "worktrees: $n"
+  fi
+  while IFS= read -r branch; do
+    if dir="$(worktree_of "$branch")"; then
+      say "$branch: $dir, last commit $(git -C "$dir" log -1 --format='%cr'), not yet pushed: $(git -C "$dir" rev-list --count "$REMOTE/$branch..HEAD" 2>/dev/null || echo '?')"
+    else
+      say "$branch: not on this computer (board setup)"
+    fi
+  done < <(board_branches | sort -u)
+  if [ -s "$sd/stuck" ]; then say "STUCK: $(cat "$sd/stuck")"; else say "not stuck"; fi
+  tail -3 "$sd/sync.log" 2>/dev/null
+}
+
+cmd_path() {
+  load_conf
+  local what="${REST[1]:-next}" branch sub=""
+  case "$what" in
+    next) branch="$NEXT_BRANCH" ;;
+    memory) branch="$NEXT_BRANCH"; sub="/memory" ;;
+    computer) branch="$NEXT_BRANCH"; sub="/memory/computers/$(host_name)" ;;
+    agents|pings) branch="$AGENTS_BRANCH" ;;
+    mailbox) [ -n "${REST[2]:-}" ] || die "usage: board path mailbox <name>"; branch="$MAILBOX_PREFIX${REST[2]}" ;;
+    *) die "usage: board path next|memory|computer|agents|mailbox <name>" ;;
+  esac
+  local dir; dir="$(worktree_of "$branch")" || die "$branch is not checked out on this computer; run: board setup (or board mailbox <name>)"
+  echo "$dir$sub"
+}
+
+cmd_mailbox() {
+  load_conf
+  local name="${REST[1]:-}"
+  [ -n "$name" ] || die "usage: board mailbox <agent-a>-<agent-b> | group-<topic>"
+  ensure_board mailbox "$MAILBOX_PREFIX$name"
+}
+
+cmd_check() {
+  load_conf
+  local mem bad
+  mem="$(worktree_of "$NEXT_BRANCH")/memory" || die "board not set up on this computer"
+  [ -d "$mem" ] || die "no memory folder at $mem"
+  # One pass: a node answers to its file name, its path inside memory/ and its frontmatter name.
+  bad="$(cd "$mem" && IFS=$'\n' && awk '
+    FNR == 1 { f = FILENAME; sub(/^\.\//, "", f); p = f; sub(/\.md$/, "", p); known[p] = 1
+               b = p; sub(/.*\//, "", b); known[b] = 1; files[f] = 1 }
+    /^name:[ \t]*/ { n = $0; sub(/^name:[ \t]*/, "", n); gsub(/["\r]/, "", n); known[n] = 1 }
+    { line = $0
+      while (match(line, /\[\[[^]]*\]\]/)) {
+        l = substr(line, RSTART + 2, RLENGTH - 4); sub(/\|.*/, "", l)
+        if (!((f SUBSEP l) in seen)) { seen[f SUBSEP l] = 1; links[++nl] = f; targets[nl] = l }
+        line = substr(line, RSTART + RLENGTH) }
+      if (f == "MEMORY.md" && match($0, /\]\([^)]*\.md\)/)) idx[++ni] = substr($0, RSTART + 2, RLENGTH - 3) }
+    END {
+      bad = 0
+      for (i = 1; i <= nl; i++) if (!(targets[i] in known)) { print "broken link [[" targets[i] "]] in " links[i] > "/dev/stderr"; bad++ }
+      for (i = 1; i <= ni; i++) if (!(idx[i] in files)) { print "MEMORY.md names a missing node: " idx[i] > "/dev/stderr"; bad++ }
+      print bad }' $(find . -name '*.md' | sort))"
+  say "$bad problem(s) in $mem"
+  [ "$bad" = 0 ]
+}
+
+parse_project "$@"
+set -- "${REST[@]+"${REST[@]}"}"
+case "${1:-help}" in
+  setup) cmd_setup ;;
+  sync) cmd_sync ;;
+  status) cmd_status ;;
+  path) cmd_path ;;
+  mailbox) cmd_mailbox ;;
+  check) cmd_check ;;
+  uninstall) cmd_uninstall ;;
+  *) sed -n '2,22p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; [ "${1:-help}" = help ] ;;
+esac

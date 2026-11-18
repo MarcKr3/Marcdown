@@ -2,7 +2,7 @@
 name: code-analyser
 description: "Performs deep logic, dependency, and behavioral analysis of identified code sections.\n\nUse when: code sections have been located and need comprehension before theorycrafting, planning, or implementation.\nDo NOT use for: locating code (use codebase-investigator) or strategic decisions (use theorycrafting)."
 tools: Read, WebFetch, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList, ToolSearch, Write, Edit
-model: inherit
+model: opus
 color: purple
 memory: project
 ---

@@ -2,7 +2,7 @@
 name: codebase-investigator
 description: "Locates relevant files and code sections with light context for a given task.\n\nUse when: you need to map codebase structure, find relevant code, or gather context before analysis or implementation.\nDo NOT use for: deep code analysis (use code-analyser) or strategic decisions (use theorycrafting)."
 tools: Glob, Grep, Read, WebFetch, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList, ToolSearch, Write, Edit
-model: inherit
+model: haiku
 color: pink
 memory: project
 ---

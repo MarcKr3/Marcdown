@@ -2,7 +2,7 @@
 name: plan-checker
 description: "Validates plans against codebase reality before execution.\n\nUse when: complex multi-phase plans need validation, or working in unfamiliar codebase.\nDo NOT use for: simple single-phase plans or creating plans (use planning-agent)."
 tools: Glob, Grep, Read, Write, Edit, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList, ToolSearch
-model: inherit
+model: sonnet
 color: slate
 memory: project
 ---

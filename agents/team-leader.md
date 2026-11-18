@@ -2,7 +2,7 @@
 name: team-leader
 description: "Orchestrates multi-team workflows: assigns agents to plan phases, tracks progress, and has stop authority.\n\nUse when: coordinating multiple teams working on a shared objective.\nDo NOT use for: single-team orchestration (surface-level agent handles that) or creating plans (use planning-agent)."
 tools: Read, Edit, Write, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList, ToolSearch
-model: inherit
+model: opus
 color: orange
 memory: project
 ---

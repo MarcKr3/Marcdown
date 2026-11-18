@@ -2,7 +2,7 @@
 name: debugger
 description: "Systematic debugging with persistent hypothesis tracking.\n\nUse when: bug reproduction fails, root cause is unclear, or debugging needs to survive context resets.\nDo NOT use for: obvious bugs (just fix them) or implementing fixes (use impl-agent)."
 tools: Bash, Read, Grep, Glob, Write, Edit, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList, ToolSearch
-model: inherit
+model: opus
 color: magenta
 memory: project
 ---

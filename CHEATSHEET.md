@@ -2,12 +2,17 @@
 
 ## Modes
 
-At the start of each conversation, Claude asks which mode applies. The mode stays until you change it.
+At the start of each chat, Claude asks two questions: the mode, and the agent automation. Claude does not ask a question that your first message already answers. The answers stay until you change them.
 
-| Mode | When | What Claude does |
-|------|------|------------------|
-| **Fast** | You test the result on the device or by hand | Makes the change itself, with no agents unless you ask. Runs the build and the unit suite once, at the end. Ends with a checklist for you. |
-| **Thorough** | The change needs more proof | Scales the process to the risk. A trivial change gets no agents. A logic change gets one impl-agent, test first. An unclear cause gets the debugger first. Larger work gets a team from `team-framework.md`. |
+| Mode | Development | Checks after development |
+|------|-------------|--------------------------|
+| **Fast** | Agents can develop | Build or compile only. No test runs. |
+| **Medium** | Agents can develop | Tests of the changed code and the shared behavior. Install on the device. |
+| **Thorough** | Test first. The process scales to the risk. | Tests of the changed code and the shared behavior. Install on the device. |
+
+**Agent automation.** No: you get a device checklist. Yes: Claude does the device checklist itself with computer use or phone automation. Then you get the evidence and a checklist of only the items that Claude could not test.
+
+When the work becomes risky, Claude recommends a different mode. The mode changes only when you agree.
 
 ## Slash Commands
 
@@ -67,9 +72,26 @@ investigate → analyse → strategize → plan → plan-check → implement →
 Ad-hoc: `debugger` (on failures), `worktree-merger` (after parallel worktree agents).
 Orchestration: `team-leader` (multi-team), `team-communicator` (cross-team).
 
-Not every task uses all agents. The orchestrator selects the minimum set needed. The orchestrator makes trivial changes itself. In Fast mode, no agents start unless you ask.
+Not every task uses all agents. The orchestrator selects the minimum set needed. The orchestrator makes trivial changes itself. Each agent has a model tier: see `team-framework.md`.
 
-## Key State Files (`.planning/`)
+## The Board
+
+Each project keeps the shared agent state on branches of its own remote. Run `~/.claude/bin/board setup` one time for each project on each computer.
+
+| Command | What it does |
+|---------|--------------|
+| `board setup` | Checks out the board, links the memory folders, starts the 2-minute sync |
+| `board status` | Shows the sync job, the memory links and anything stuck |
+| `board path next\|memory\|computer\|agents` | Shows where a board folder is on this computer |
+| `board mailbox <name>` | Opens or joins a mailbox branch |
+| `board check` | Finds broken links in the shared memory |
+
+- `NEXT.md`: the to-do list, the lane status and the decisions for you.
+- `memory/`: the shared project memory. `memory/computers/{name}/` holds notes for one computer.
+- `handoffs/`: the handoffs that you ask for.
+- Pings (`agents` branch) and mailboxes (`mailbox/*` branches): agent communication across computers.
+
+## Key State Files (`.planning/`, only when you ask for a `.planning/` command)
 
 ### Project-Level (singleton)
 
@@ -112,14 +134,17 @@ After parallel worktree agents finish, the `worktree-merger` agent integrates th
 
 ## Rules You Should Know
 
-- **You choose the mode.** Fast or Thorough, asked at the start of each conversation.
-- **You approve everything.** Claude presents a proposal and waits before it starts a plan, writes code or spawns agents.
-- **You make the design choices.** If a design choice is not clearly stated, Claude asks. A design choice changes behavior, appearance, wording or scope. Surprises and plan deviations also come to you.
+- **You choose the mode and the automation.** Asked at the start of each chat.
+- **"Do X" is your approval.** Claude does not ask again. "What does X need?" gets a numbered list of steps.
+- **You make the design choices.** If a design choice is not clearly stated, Claude asks. A design choice changes behavior, appearance, wording or scope. Surprises and deviations also come to you.
+- **Your words win.** Then the global rules, then the project files. Claude shows each conflict to you.
 - **Evidence before "done".** Nothing is marked complete without a check that can fail.
 - **Root cause before fix.** After two failed fixes, Claude reproduces the fault in a check first.
-- **No commits unless you ask.** Claude also never uses git to discard changes.
+- **No commits unless you ask.** Exception: Claude commits and pushes the board branches itself. Claude also never uses git to discard changes.
+- **Reviews.** Claude examines its own diff. An independent review runs only when you ask. When you say that a branch is complete, Claude offers one final independent review.
+- **Tests.** The tests of the changed code and the shared behavior. The full suite and mutation tests only when you ask.
 - **Team limits.** Max 7 agents single-team, 14 multi-team. Exceeding requires your explicit approval.
-- **Session management.** Use `/handoff` at end of session, `/resume-h` at start of next. Use `/compact` to free context mid-session without losing state.
+- **Session management.** Claude writes a handoff only when you ask (`/handoff`). `/resume-h` reads it in the next session. Use `/compact` to free context.
 
 ## Quick Decision Guide
 

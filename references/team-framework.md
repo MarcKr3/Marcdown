@@ -2,6 +2,26 @@
 
 Load this file when planning agent team composition. Not needed for simple tasks.
 
+## Modes
+
+The user selects the mode and the agent automation at the start of the chat (`~/.claude/CLAUDE.md`).
+
+| Mode | Development | Checks after development | Device checklist |
+|------|-------------|--------------------------|------------------|
+| Fast | Agents can develop | Build or compile only | User, or the agent when automation is Yes |
+| Medium | Agents can develop | Tests of the changed code and the shared behavior, then install | User, or the agent when automation is Yes |
+| Thorough | Test first, team scaled to the risk | Tests of the changed code and the shared behavior, then install | User, or the agent when automation is Yes |
+
+The full suite and mutation tests run only when the user asks.
+
+## Model Tiers
+
+| Tier | Agents | Rule |
+|------|--------|------|
+| `opus` | code-analyser, theorycrafting, planning-agent, impl-agent, debugger, team-leader | Can take a clear brief and work alone |
+| `sonnet` | plan-checker, docs-and-cleanup, worktree-merger, team-communicator | Exact tasks only. Stop and ask the lead when a decision comes up. |
+| `haiku` | codebase-investigator, test-validator | Exact tasks only. Stop and ask the lead when a decision comes up. |
+
 ## Agent Roster
 
 | Agent | Role |
@@ -123,7 +143,9 @@ After worktree agents complete, deploy the `worktree-merger` agent to integrate 
 
 ## State Management
 
-Active work state in `.planning/` at the project root:
+By default, plan in the chat. Keep the to-do items in `NEXT.md` on the board (`~/.claude/bin/board path next`). Put a handoff that the user asks for in `handoffs/` on the board.
+
+Use `.planning/` only when the user asks for a `.planning/` command. Then the active work state is in `.planning/` at the project root:
 
 ### Project-Level (singleton)
 

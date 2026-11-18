@@ -2,7 +2,7 @@
 name: planning-agent
 description: "Breaks architectural decisions into concrete implementation plans with phases, tasks, and dependencies.\n\nUse when: architecture/approach is decided and needs actionable task breakdown.\nDo NOT use for: strategic decisions (use theorycrafting) or agent assignment (orchestrator handles that)."
 tools: Glob, Grep, Read, Edit, Write, NotebookEdit, WebFetch, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList, ToolSearch
-model: inherit
+model: opus
 color: blue
 memory: project
 ---

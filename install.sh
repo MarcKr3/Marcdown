@@ -6,7 +6,7 @@ TARGET="$HOME/.claude"
 MANIFEST="$TARGET/.marcdown-manifest"
 
 # Framework items to install
-DIRS=(agents commands references templates skills)
+DIRS=(agents bin commands references templates skills)
 ROOT_FILES=(CLAUDE.md)
 
 # --- Uninstall mode ---
@@ -14,7 +14,7 @@ if [[ "${1:-}" == "--uninstall" ]]; then
   if [[ ! -f "$MANIFEST" ]]; then
     echo "No Marcdown installation found (missing manifest)."
     echo "If you installed manually, remove these from $TARGET:"
-    echo "  agents/ commands/ references/ templates/ skills/ste-writing/ CLAUDE.md"
+    echo "  agents/ bin/ commands/ references/ templates/ skills/ste-writing/ CLAUDE.md"
     exit 1
   fi
 
@@ -106,9 +106,12 @@ for f in "${ROOT_FILES[@]}"; do
   fi
 done
 
+chmod +x "$TARGET"/bin/* 2>/dev/null || true
+
 COUNT=$(wc -l < "$MANIFEST" | tr -d ' ')
 echo ""
 echo "Installed $COUNT files into $TARGET."
 echo ""
+echo "Board:     in each project, run ~/.claude/bin/board setup (one time for each computer)"
 echo "Update:    re-run this script"
 echo "Uninstall: bash <(curl -fsSL https://raw.githubusercontent.com/MarcKr3/Marcdown/main/install.sh) --uninstall"

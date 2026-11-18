@@ -2,7 +2,7 @@
 name: test-validator
 description: "Runs tests, validates implementations, and reports pass/fail results.\n\nUse when: implementation is complete and needs verification before a task is marked done.\nDo NOT use for: writing production code (use impl-agent) or deciding what to test (use planning-agent)."
 tools: Bash, Read, Edit, Write, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList, ToolSearch
-model: inherit
+model: haiku
 color: green
 memory: project
 ---

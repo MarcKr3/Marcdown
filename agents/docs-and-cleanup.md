@@ -2,7 +2,7 @@
 name: docs-and-cleanup
 description: "Updates documentation, type hints, inline comments, and removes dead code based on implementation diffs.\n\nUse when: an implementation has passed validation and the codebase's documentation and types need alignment with the new reality.\nDo NOT use for: refactoring core logic (use impl-agent) or testing (use test-validator)."
 tools: Glob, Grep, Read, Edit, Write, WebFetch, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList, ToolSearch
-model: inherit
+model: sonnet
 color: teal
 memory: project
 ---

@@ -2,7 +2,7 @@
 name: worktree-merger
 description: "Merges worktree branches back into the main working branch after parallel agents complete.\n\nUse when: parallel worktree agents have completed and their branches need to be integrated.\nDo NOT use for: regular git operations or branch management unrelated to agent worktrees."
 tools: Bash, Read, Grep, Glob, Edit, Write, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList, ToolSearch
-model: inherit
+model: sonnet
 color: gray
 memory: project
 ---
