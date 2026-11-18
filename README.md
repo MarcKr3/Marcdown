@@ -22,6 +22,12 @@ An agent team framework for Claude Code. Adds structured multi-agent orchestrati
 bash <(curl -fsSL https://raw.githubusercontent.com/MarcKr3/marcdown/main/install.sh)
 ```
 
+To install from an unpacked zip, run the installer in the unpacked folder. It then copies from that folder and does not download anything:
+
+```bash
+bash marcdown/install.sh
+```
+
 This copies framework files directly into `~/.claude/`. Files with identical names are overwritten. The installer will warn you and prompt for confirmation before proceeding.
 
 **What gets installed:** `agents/`, `bin/`, `commands/`, `references/`, `templates/`, `skills/ste-writing/`, `CLAUDE.md`

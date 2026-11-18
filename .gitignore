@@ -13,6 +13,7 @@
 /session-env/
 /sessions/
 /state/
+/scheduled-tasks/
 /shell-snapshots/
 /statsig/
 /tasks/

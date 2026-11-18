@@ -73,12 +73,19 @@ fi
 
 echo ""
 
-# Clone to temp directory
-TMPDIR="$(mktemp -d)"
-trap 'rm -rf "$TMPDIR"' EXIT
-
-echo "Downloading Marcdown..."
-git clone --depth 1 --quiet "$REPO" "$TMPDIR/marcdown"
+# Source: the folder of this script when it holds the framework (an unpacked zip),
+# else a fresh clone of the repository.
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd -P || true)"
+if [[ -n "$HERE" && -f "$HERE/CLAUDE.md" && -d "$HERE/agents" && "$HERE" != "$(cd "$TARGET" 2>/dev/null && pwd -P || true)" ]]; then
+  SRC="$HERE"
+  echo "Installing Marcdown from $SRC..."
+else
+  TMPDIR="$(mktemp -d)"
+  trap 'rm -rf "$TMPDIR"' EXIT
+  echo "Downloading Marcdown..."
+  git clone --depth 1 --quiet "$REPO" "$TMPDIR/marcdown"
+  SRC="$TMPDIR/marcdown"
+fi
 
 mkdir -p "$TARGET"
 
@@ -87,10 +94,10 @@ mkdir -p "$TARGET"
 
 # Copy directories
 for d in "${DIRS[@]}"; do
-  if [[ -d "$TMPDIR/marcdown/$d" ]]; then
-    (cd "$TMPDIR/marcdown" && find "$d" -type f) | while IFS= read -r rel; do
+  if [[ -d "$SRC/$d" ]]; then
+    (cd "$SRC" && find "$d" -type f) | while IFS= read -r rel; do
       mkdir -p "$(dirname "$TARGET/$rel")"
-      cp "$TMPDIR/marcdown/$rel" "$TARGET/$rel"
+      cp "$SRC/$rel" "$TARGET/$rel"
       echo "$rel" >> "$MANIFEST"
       echo "  + $rel"
     done
@@ -99,8 +106,8 @@ done
 
 # Copy root files
 for f in "${ROOT_FILES[@]}"; do
-  if [[ -f "$TMPDIR/marcdown/$f" ]]; then
-    cp "$TMPDIR/marcdown/$f" "$TARGET/$f"
+  if [[ -f "$SRC/$f" ]]; then
+    cp "$SRC/$f" "$TARGET/$f"
     echo "$f" >> "$MANIFEST"
     echo "  + $f"
   fi
