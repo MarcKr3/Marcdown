@@ -74,6 +74,17 @@ When the work becomes risky, recommend a different mode in one line, and give th
 - Do not commit or push unless the user asks.
 - Exception: commit and push the board branches without a question. These branches hold agent communication and agent knowledge: the mailbox branches, the agents branch with the pings, and `NEXT.md` and `memory/` on the board branch.
 - Do not push to the main branch directly.
+- After you merge your branch into the main branch, clean up the branch and all its worktrees. Do this only when no work stays on that branch. If the user told you to do the merge, this rule is the approval of the user for these deletions. If you did the merge with no instruction from the user for that merge, ask the user before you delete. Do these steps in this sequence:
+  1. Make sure that the main branch contains the branch: its pull request shows "merged", or `git branch -r --merged origin/main` shows `origin/<branch>`.
+  2. Make sure that each worktree of the branch has no uncommitted or untracked files: `git -C <path> status --porcelain` shows nothing.
+  3. Make sure that each local commit is on the remote: `git log origin/<branch>..<branch>` shows nothing.
+  4. Make sure that no other agent uses the branch or its worktrees: examine `git worktree list`, `ListAgents` and the pings.
+  5. Remove each worktree with `git worktree remove <path>`. Do not use `--force`.
+  6. Delete the local branch with `git branch -d <branch>`. After a squash merge, `-d` refuses. Then use `-D`, but only after steps 1 to 3 pass.
+  7. If the remote branch is still there, delete it with `git push origin --delete <branch>`.
+- Do not delete the main branch, a board branch, or the branch of another agent.
+- Ask the user each time before you clean up the folder from which a computer runs the desktop app, or the branch of that folder.
+- If a step fails, stop. Delete nothing more and tell the user.
 
 # Quality
 
