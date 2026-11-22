@@ -1,10 +1,10 @@
-Assess feasibility and evaluate approaches: $ARGUMENTS
+Examine the feasibility and compare the approaches: $ARGUMENTS
 
-Launch the theorycrafting agent to:
-1. Discover constraints and requirements through focused questions
-2. Enumerate 2-4 possible approaches
-3. Evaluate tradeoffs for each approach
-4. Recommend a strategy with visible reasoning
-5. Identify edge cases and open questions
+Launch the theorycrafting agent. Tell it to:
+1. Find the constraints and the requirements.
+2. List the possible approaches.
+3. Compare the tradeoffs of each approach.
+4. Recommend a strategy. Give the reasons and the tradeoffs.
+5. Find the edge cases and the open questions.
 
-Use this before planning when the approach is unclear or multiple valid paths exist.
+Use this command before the plan, when the approach is not clear or when there are many good approaches.

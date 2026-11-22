@@ -1,14 +1,12 @@
-Post-implementation cleanup: $ARGUMENTS
+Cleanup after the implementation: $ARGUMENTS
 
-**Determine scope:**
-- If `$ARGUMENTS` starts with a feature slug matching `.planning/features/<slug>/`, use feature scope
-- Otherwise, use project scope
+**Scope:** the files that `$ARGUMENTS` names. If `$ARGUMENTS` names no files, use the recent changes.
 
-Launch the docs-and-cleanup agent to:
-1. Review recent diffs and implementation changes
-2. Update documentation (docstrings, comments, READMEs) to match new code
-3. Add or correct type hints and signatures
-4. Remove unused imports and dead code left by implementation
-5. Ensure the codebase remains clean and accurately documented
+Launch the docs-and-cleanup agent. Tell it to:
+1. Read the recent diffs and the implementation changes.
+2. Update the documentation (docstrings, comments, READMEs), so that it agrees with the new code.
+3. Add or correct the type hints and the signatures.
+4. Remove the unused imports and the dead code that the implementation left.
+5. Make sure that the code is clean and that its documentation is correct.
 
-Only run this after implementation has been validated by test-validator.
+Run this after the checks of the current mode pass: the compile check in No Test, the tests of the changed code in Test After and Thorough Testing.

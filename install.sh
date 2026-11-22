@@ -9,6 +9,12 @@ MANIFEST="$TARGET/.marcdown-manifest"
 DIRS=(agents bin commands references templates skills)
 ROOT_FILES=(CLAUDE.md)
 
+# --yes skips the confirmation prompt (for /marcdown-setup, which asks the user first).
+YES=0
+for arg in "$@"; do
+  [[ "$arg" == "--yes" ]] && YES=1
+done
+
 # --- Uninstall mode ---
 if [[ "${1:-}" == "--uninstall" ]]; then
   if [[ ! -f "$MANIFEST" ]]; then
@@ -64,11 +70,13 @@ if [[ -d "$TARGET" ]] && { [[ -e "$TARGET/CLAUDE.md" ]] || [[ -d "$TARGET/agents
   echo ""
 fi
 
-read -p "Continue? [y/N] " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-  echo "Aborted."
-  exit 1
+if [[ "$YES" -eq 0 ]]; then
+  read -p "Continue? [y/N] " -n 1 -r
+  echo
+  if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo "Aborted."
+    exit 1
+  fi
 fi
 
 echo ""
@@ -88,6 +96,17 @@ else
 fi
 
 mkdir -p "$TARGET"
+
+# Remove the files of the earlier version that this version no longer ships.
+# Only paths in the old manifest are touched, so user files stay.
+if [[ -f "$MANIFEST" ]]; then
+  while IFS= read -r old; do
+    if [[ -n "$old" && ! -e "$SRC/$old" && -f "$TARGET/$old" ]]; then
+      rm "$TARGET/$old"
+      echo "  - $old"
+    fi
+  done < "$MANIFEST"
+fi
 
 # Fresh manifest
 > "$MANIFEST"
@@ -120,5 +139,6 @@ echo ""
 echo "Installed $COUNT files into $TARGET."
 echo ""
 echo "Board:     in each project, run ~/.claude/bin/board setup (one time for each computer)"
-echo "Update:    re-run this script"
+echo "Update:    run /marcdown-setup in Claude Code. It shows the changes and asks before it installs."
+echo "           Or re-run this script."
 echo "Uninstall: bash <(curl -fsSL https://raw.githubusercontent.com/MarcKr3/Marcdown/main/install.sh) --uninstall"

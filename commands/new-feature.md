@@ -1,188 +1,145 @@
-Add a new feature to an existing codebase with streamlined discovery and planning.
+Add a new feature to an existing codebase with a short discovery and a plan.
 
 Arguments: $ARGUMENTS
 
-You are orchestrating a feature addition pipeline. This is a shorter alternative to `/new-project` — scoped for adding features to existing codebases. Follow these stages IN ORDER. Never skip a stage. Each stage requires explicit user approval before proceeding to the next.
-
-**Parallel safety:** Each feature gets its own namespace under `.planning/features/<slug>/`. Multiple features can be developed concurrently without file conflicts.
+You lead a feature addition. This command is a short alternative to `/new-project` for a feature in an existing codebase. Do the stages in order. Each stage needs the approval of the user before the next stage starts.
 
 ---
 
-## Pre-Stage: Worktree Isolation (default)
+## Pre-Stage: Worktree isolation (when another session is active)
 
-**Before any other work**, check if this session is already in a worktree. If not:
+Before other work, find out if this session is in a worktree. If it is not:
 
-1. Use `EnterWorktree` with the feature name as the worktree name (e.g., `EnterWorktree` with name `auth-feature`)
-2. This isolates the entire session so parallel feature work in other tabs cannot conflict
+1. Find out if another session works on this repository. Examine `ListAgents` and `git worktree list`. If no other session is active, work in the main checkout and skip steps 2 and 3.
+2. Use `EnterWorktree` with the feature name as the worktree name, for example `auth-feature`.
+3. The worktree isolates the session. Then feature work in other tabs cannot conflict with it.
 
-**This is the default behavior.** Only skip if the user explicitly opts out (e.g., "no worktree", "work in main", "skip worktree").
+The user can override this. Examples: "no worktree", "work in main", "use a worktree".
 
 ---
 
-## Stage 0: Input Analysis & Feature Naming
+## Stage 0: Input analysis and feature name
 
-1. Determine the **feature name** from `$ARGUMENTS`:
-   - If arguments contain a clear feature name, use it
-   - If arguments are file paths or vague, defer naming to Stage 1
-2. Derive a **slug** from the feature name: lowercase, hyphens for spaces, strip special characters (e.g., "User Authentication" → `user-authentication`)
-3. Create `.planning/features/<slug>/` directory
-4. If `$ARGUMENTS` contains file paths, read ALL provided files — these are the user's feature specs, notes, or references
-5. Check for existing project-level state:
-   - If `.planning/PLAN.md` exists, note the current project plan context
-   - If `.planning/REQUIREMENTS.md` exists, note existing project requirements for cross-referencing
-6. Check for existing feature state:
-   - If `.planning/features/<slug>/` already exists with artifacts, report this and ask: resume, overwrite, or rename?
-7. If files were provided, produce a structured analysis:
+1. Get the feature name from `$ARGUMENTS`.
+   - If the arguments give a clear feature name, use it.
+   - If the arguments are file paths or are not clear, find the name in Stage 1.
+2. If `$ARGUMENTS` gives file paths, read all of the files. They are the specifications, notes or references of the user for the feature.
+3. Read `NEXT.md` on the board (`~/.claude/bin/board path next`). Find the items that touch this feature.
+4. If the user gave files, write this analysis:
 
 ```markdown
 ## Feature Input Analysis
 
 ### Feature
 - **Name**: [feature name]
-- **Slug**: `<slug>`
-- **Namespace**: `.planning/features/<slug>/`
 
-### What's Defined
-- [What the provided documents establish about this feature]
+### What the input defines
+- [What the documents state about the feature]
 
-### Integration Points
-- [How this feature relates to existing codebase/plan]
+### Integration points
+- [How the feature connects to the existing codebase and to the items in NEXT.md]
 
-### Open Questions
-- [What needs clarification before proceeding]
+### Open questions
+- [What the user must make clear before the next stage]
 ```
 
-8. Present analysis to user. If no files were provided, proceed directly to Stage 1.
+5. Show the analysis to the user. If the user gave no files, go to Stage 1.
 
-**Stage 0 exit**: Get user acknowledgment (including the feature name/slug) before proceeding.
-
----
-
-## Stage 1: Feature Discovery (2 rounds)
-
-If the feature name was not determined in Stage 0, establish it during this stage and derive the slug.
-
-### Round 1 — Feature Definition (ask 4-6 questions)
-- What exactly is this feature? What does it do for the user?
-- What triggers it? (user action, event, schedule, API call?)
-- What's the expected output/behavior? Walk me through the main flow.
-- What are the edge cases you're already thinking about?
-- What's the scope boundary — what is this feature NOT?
-- Priority: must-ship quality or iterative/experimental?
-
-### Round 2 — Integration & Constraints (ask 3-5 questions)
-- Where does this feature live in the existing architecture? (new module, extension of existing, cross-cutting?)
-- What existing code does it interact with? Any known dependencies?
-- Are there API contracts, database changes, or UI components involved?
-- Any performance, security, or backwards-compatibility constraints?
-- Does this affect existing tests or require new test infrastructure?
-
-**Rules for questioning:**
-- **Use `AskUserQuestion` for ALL discovery questions.** Never ask as plain text. Batch up to 4 questions per call.
-- Ask one round at a time. Wait for answers.
-- Build on previous answers — don't re-ask what's been covered.
-- If Stage 0 provided context, skip questions already answered by the documents.
-- If an answer is vague, probe deeper with follow-ups.
-
-**Stage 1 exit**: Present a brief feature summary back to the user, confirming the feature name and slug. Ask: "Does this capture the feature accurately? Anything to add or correct?" Get explicit approval.
+**Stage 0 exit**: Get the approval of the user for the analysis and the feature name.
 
 ---
 
-## Stage 2: Feature Requirements
+## Stage 1: Feature discovery (2 rounds)
 
-Write `.planning/features/<slug>/REQUIREMENTS.md` using the template from `~/.claude/templates/FEATURE-REQUIREMENTS.md`.
+If Stage 0 did not find the feature name, find it in this stage.
+
+### Round 1: Feature definition
+Ask only what the input does not answer. Topics:
+- What the feature is, and what it does for the user.
+- What starts it: a user action, an event, a schedule or an API call.
+- The output and the behavior. The main flow, step by step.
+- The edge cases that the user knows about.
+- The scope limit: what the feature does not do.
+- The quality: ready to ship, or iterative and experimental.
+
+### Round 2: Integration and constraints
+Ask only what the input and Round 1 do not answer. Topics:
+- Where the feature goes in the architecture: a new module, an extension of a module, or a change across modules.
+- The existing code that the feature touches, and known dependencies.
+- API contracts, database changes and UI parts.
+- Performance, security and backward compatibility.
+- The effect on the existing tests, and new test infrastructure.
+
+**Rules for the questions:**
+- Ask the discovery questions with `AskUserQuestion`, up to 4 questions in each call.
+- Ask one round at a time. Wait for the answers.
+- Do not ask again about a topic that an answer or a document covers.
+- If an answer is not clear, ask a follow-up question.
+
+**Stage 1 exit**: Give the user a short summary of the feature with its name. Ask: "Is this summary of the feature correct? Must I add or correct something?" Get the approval of the user.
+
+---
+
+## Stage 2: Feature requirements
+
+Write the requirements in the chat.
 
 **Rules:**
-- Every requirement gets a FREQ-ID for traceability
-- Every requirement has acceptance criteria
-- Cross-reference existing REQ-IDs from `.planning/REQUIREMENTS.md` if they exist
-- Keep scope tight — this is one feature, not a project
+- Give each requirement an ID, for example FREQ-1, so that the plan can refer to it.
+- Give each requirement acceptance criteria.
+- Keep the scope to this feature.
 
-**Stage 2 exit**: Present the requirements to the user. Ask: "Are these requirements complete and correctly scoped?" Get explicit approval.
-
----
-
-## Stage 3: Codebase Mapping (mandatory)
-
-This stage is always required — you're adding to an existing codebase.
-
-Propose a team architecture for investigation:
-```
-Proposed Team Architecture:
-- Pipeline: codebase-investigator
-- Structure: single-team
-- Agent count: 1
-- Reasoning: Map existing code relevant to this feature
-```
-
-The investigator should:
-1. Map the areas of the codebase this feature will touch
-2. Identify existing patterns, conventions, and interfaces to follow
-3. Find integration points and potential conflicts
-4. Write findings to `.planning/features/<slug>/CODEBASE.md` using the template from `~/.claude/templates/CODEBASE.md`
-
-**Stage 3 exit**: Present the codebase map. Ask: "Any concerns about integration approach?" Get acknowledgment.
+**Stage 2 exit**: Ask: "Are these requirements complete, and is the scope correct?" Get the approval of the user.
 
 ---
 
-## Stage 4: Feature Planning
+## Stage 3: Codebase map
 
-Propose a team architecture for planning:
-```
-Proposed Team Architecture:
-- Pipeline: planning-agent
-- Structure: single-team
-- Agent count: 1
-- Reasoning: Plan feature implementation from requirements + codebase map
-```
+This stage is necessary, because the feature goes into an existing codebase.
 
-The planning-agent should:
-1. Read `.planning/features/<slug>/REQUIREMENTS.md` and `.planning/features/<slug>/CODEBASE.md`
-2. Create `.planning/features/<slug>/PLAN.md` with the feature implementation plan
-3. If a project-level `.planning/PLAN.md` exists, note any dependencies or integration points — but do NOT modify the project plan
-4. Ensure every FREQ-ID maps to a task in the plan
-5. Respect existing codebase patterns identified in Stage 3
+Launch the built-in Explore agent. Tell it to find:
+1. The parts of the codebase that the feature touches.
+2. The existing patterns, conventions and interfaces that the feature must agree with.
+3. The integration points and the possible conflicts.
 
-**Stage 4 exit**: Present the plan. Ask: "Does this implementation approach look right? Ready to validate?" Get explicit approval.
+Give the result to the user in the chat as a short codebase map.
+
+**Stage 3 exit**: Ask: "Do you see a problem with this integration?" Get the acknowledgment of the user.
 
 ---
 
-## Stage 5: Validation & Kickoff
+## Stage 4: Feature plan
 
-Launch the plan-checker agent to validate the plan against codebase reality.
+Launch the built-in Plan agent with the requirements of Stage 2 and the codebase map of Stage 3. The plan must give:
+- The goals. Connect each requirement ID to a goal.
+- For each goal, how to know that the goal is reached.
+- The way to each goal, with its safety points: the risks, what must not break, and how to go back.
+- The tasks on each way. The tasks agree with the codebase patterns of Stage 3.
+- The dependencies on other items in `NEXT.md`. The plan does not change those items.
 
-Report validation results. If REVISIONS NEEDED, send back to planning-agent and re-validate.
+Give the plan to the user in the chat.
 
-Once validated, announce:
+**Stage 4 exit**: Ask: "Is this the correct approach?" Get the approval of the user.
+
+---
+
+## Stage 5: Kickoff
+
+1. Get the memory folder with `~/.claude/bin/board path memory`. If the board is not set up, tell the user, give the command `~/.claude/bin/board setup`, and stop.
+2. Write the approved plan as one memory node `plan-<slug>.md`, in strict STE. Give it this frontmatter: `name: plan-<slug>`, a one-line `description`, and `metadata.type: project`. The node holds the approved requirements (ID, text and acceptance criteria), the goals, how to know that each goal is reached, and the safe way to each goal.
+3. Add one line to `MEMORY.md` that points to the node. End the line with the date.
+4. Write the tasks of the plan as to-do items in `NEXT.md` on the board. Each item names its goal and points to `plan-<slug>`.
+5. Delete the node and its line in `MEMORY.md` when the work is done.
+
+Then tell the user:
 
 ```
 FEATURE READY
 =============
-Feature: [Name] (slug: <slug>)
-Namespace: .planning/features/<slug>/
-Requirements: .planning/features/<slug>/REQUIREMENTS.md
-Codebase Map: .planning/features/<slug>/CODEBASE.md
-Plan: .planning/features/<slug>/PLAN.md (validated)
-
-Ready to execute. Use:
-- /implement <slug> — to start execution
-- /status — to check progress
-- /status — for full dashboard
+Feature: [Name]
+Requirements: in the plan node
+Plan: memory node plan-<slug> on the board
+To-do items: NEXT.md on the board
 ```
 
-Do NOT auto-start execution. Let the user decide when to begin with `/implement`.
-
----
-
-## Files Created by This Pipeline
-| File | Stage | Purpose |
-|------|-------|---------|
-| `.planning/features/<slug>/REQUIREMENTS.md` | Stage 2 | Feature requirements with FREQ-IDs |
-| `.planning/features/<slug>/CODEBASE.md` | Stage 3 | Codebase map for feature integration |
-| `.planning/features/<slug>/PLAN.md` | Stage 4 | Feature implementation plan |
-
-Additional files created during implementation:
-| File | Created by | Purpose |
-|------|------------|---------|
-| `.planning/features/<slug>/CHECKPOINTS.md` | `/implement` | Task completion records |
-| `.planning/features/<slug>/DEVIATIONS.md` | `/implement` | Plan deviation records |
+Do not start the work. The user decides when the work starts.

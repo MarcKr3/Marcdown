@@ -13,9 +13,9 @@ When two of these conflict, tell the user about the conflict and wait. The answe
 
 # Start of a chat
 
-Before the first work step, ask two questions with `AskUserQuestion`. Do not ask a question that the first message of the user already answers.
+Before the first step that changes code or files, ask two questions with `AskUserQuestion`. A chat that only answers questions or reads files does not ask them. Do not ask a question that the first message of the user already answers.
 
-1. **Mode**: Fast, Medium or Thorough.
+1. **Mode**: No Test, Test After or Thorough Testing.
 2. **Agent automation**: Yes or No. With Yes, the agent does the device checklist itself, with computer use or phone automation.
 
 Use the answers for the full chat, until the user changes them. A subagent does not ask. It uses the mode and the automation setting that its brief gives.
@@ -24,7 +24,7 @@ Use the answers for the full chat, until the user changes them. A subagent does 
 
 In each mode, agents can develop the work that the user decided.
 
-## Fast
+## No Test
 
 The user tests the result. No time goes to test runs.
 
@@ -33,22 +33,22 @@ The user tests the result. No time goes to test runs.
 3. Automation No: give the user a device checklist. Tell the user what to do and what a pass looks like.
 4. Automation Yes: do the device checklist yourself. Give the evidence, and a checklist of only the items that you could not test.
 
-## Medium
+## Test After
 
-Develop as in Fast. Then test the result yourself.
+Develop as in No Test. Then test the result yourself.
 
 1. Run the unit tests of the changed code and of the shared behavior that the change touches.
 2. Install the build on the device.
 3. Automation No: give the user the device checklist.
 4. Automation Yes: do the device checklist yourself. Give the evidence, for example screenshots or logs. Then give a checklist of only the items that you could not test.
 
-## Thorough
+## Thorough Testing
 
 Scale the process to the risk with `~/.claude/references/team-framework.md`.
 
 1. Write the test first and make sure that it fails. Then write the code. Where no unit test can reach, make a different check fail first.
 2. A trivial or single-file change gets no agents. A logic change gets one impl-agent. An unclear cause gets the debugger first. Larger work gets a team from `team-framework.md`.
-3. After the development, do the device steps of Medium, with the same automation setting.
+3. After the development, do the device steps of Test After, with the same automation setting.
 
 ## Mode changes
 
@@ -56,7 +56,7 @@ When the work becomes risky, recommend a different mode in one line, and give th
 
 # Tests
 
-- Run the tests of the changed code and of the shared behavior that the change touches.
+- In Test After and Thorough Testing, run the tests of the changed code and of the shared behavior that the change touches.
 - Run the full suite only when the user asks.
 - Run mutation tests only when the user asks.
 - When a rule in the model changes, update or add its unit test in the same change.
@@ -97,22 +97,21 @@ When the work becomes risky, recommend a different mode in one line, and give th
 # Reviews
 
 - An independent review runs only when the user asks for it.
-- When the user says that a development branch is complete, offer one final independent review. Use one new reviewer on the strongest model. Do not use the chat that built the work.
+- When the user says that a development branch is complete, offer one final independent review. Use one new reviewer on the most capable model that is available, at high or xhigh effort as the task needs. Do not use the chat that built the work.
 
 # Agents and models
 
 - The chat that the user opens is the lead and makes the decisions.
 - Each agent in `~/.claude/agents/` has a model tier. A strong model can take a clear brief and work alone.
 - A small model gets only exact tasks: the files, the change, and what done looks like. If a decision comes up, the small model stops and asks the lead.
-- Background agents report when they finish. Do not examine an agent that works.
-- When you wait idle for something to complete, examine its progress after each fifth of the expected total time. Examples: a build, an install, an upload, another agent, another computer. For an expected time of 25 minutes, examine it every 5 minutes. If nothing moved, find the cause.
+- An agent that does its task itself reports when it finishes. Do not examine it. Supervise agents through agent communication.
+- When you wait idle for a build, a test run, an install, an upload or another computer, examine its progress after each fifth of the expected total time. For an expected time of 25 minutes, examine it every 5 minutes. If nothing moved, find the cause.
 
 # Planning and records
 
-- Plan in the chat.
+- Plan in the chat. When the user approves a plan, keep it as one memory node on the board, `plan-<slug>`. The node gives the approved requirements, the goals, how to know that each goal is reached, and the way to each goal with its safety points: the risks, what must not break, and how to go back. Delete the node when the work is done.
 - Keep the to-do items in `NEXT.md` on the board.
 - Write a handoff only when the user asks. If the project has a board, put the handoff in `handoffs/` on the board.
-- Use the `.planning/` commands only when the user asks for them: `/plan`, `/implement`, `/checkpoint`, `/deviation`, `/archive-plan`, `/plan-check`, `/review-plan`, `/new-feature`, `/new-project`.
 - Keep test output out of git.
 - A comment gives the reason in one or two sentences.
 
@@ -141,6 +140,8 @@ The shared project memory is `memory/` on the board. `board setup` links the Cla
 
 # Other agents
 
+These steps apply to tasks that change files or branches. A chat that only answers questions or reads files skips them.
+
 - On this computer: at the start, find the other agents with `ListAgents`, `git worktree list` and the open branches. If an agent works on your files, send it a message with `SendMessage`. Agree who changes which file before you edit.
 - On all computers: when you get a task, write your ping in `pings/{agent}.md` on the agents branch. Get the folder with `board path agents`. Give the computer, the branch, the task, the files and the status.
 - Read all other pings. Answer the pings that touch your work.
@@ -154,13 +155,13 @@ The shared project memory is `memory/` on the board. `board setup` links the Cla
 # Writing
 
 - In the chat with the user, use regular language.
-- All other text that you write uses strict Simplified Technical English with the `ste-writing` skill. This includes docs, comments, commit messages, PR text, board files, memory nodes, pings, mailbox messages and briefs to agents.
-- Lint with `python3 ~/.claude/skills/ste-writing/ste-lint.py --strict <file>`. The target is below 1.5 per 100 words.
+- All other text that you write uses strict Simplified Technical English: short sentences, one instruction in each sentence, active voice, approved words, and no em dashes or semicolons. This includes docs, comments, commit messages, PR text, board files, memory nodes, pings, mailbox messages and briefs to agents.
+- You do not need to load the `ste-writing` skill. Run its lint only for user-facing STE text, and only when it is truly needed.
 
 # Report
 
 - End each piece of work with a short report: what the user can do now, what to try, what a pass looks like, and what you did not test.
-- Write one checkpoint of five lines or fewer for each change. In Thorough, write one checkpoint of ten lines or fewer for each phase.
+- Write one short checkpoint for each change. In Thorough Testing, write one checkpoint for each phase.
 
 # Context
 

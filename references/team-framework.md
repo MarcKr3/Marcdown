@@ -1,4 +1,4 @@
-# Team Design Framework — Reference
+# Team Design Framework: Reference
 
 Load this file when planning agent team composition. Not needed for simple tasks.
 
@@ -8,9 +8,9 @@ The user selects the mode and the agent automation at the start of the chat (`~/
 
 | Mode | Development | Checks after development | Device checklist |
 |------|-------------|--------------------------|------------------|
-| Fast | Agents can develop | Build or compile only | User, or the agent when automation is Yes |
-| Medium | Agents can develop | Tests of the changed code and the shared behavior, then install | User, or the agent when automation is Yes |
-| Thorough | Test first, team scaled to the risk | Tests of the changed code and the shared behavior, then install | User, or the agent when automation is Yes |
+| No Test | Agents can develop | Build or compile only | User, or the agent when automation is Yes |
+| Test After | Agents can develop | Tests of the changed code and the shared behavior, then install | User, or the agent when automation is Yes |
+| Thorough Testing | Test first, team scaled to the risk | Tests of the changed code and the shared behavior, then install | User, or the agent when automation is Yes |
 
 The full suite and mutation tests run only when the user asks.
 
@@ -18,25 +18,20 @@ The full suite and mutation tests run only when the user asks.
 
 | Tier | Agents | Rule |
 |------|--------|------|
-| `opus` | code-analyser, theorycrafting, planning-agent, impl-agent, debugger, team-leader | Can take a clear brief and work alone |
-| `sonnet` | plan-checker, docs-and-cleanup, worktree-merger, team-communicator | Exact tasks only. Stop and ask the lead when a decision comes up. |
-| `haiku` | codebase-investigator, test-validator | Exact tasks only. Stop and ask the lead when a decision comes up. |
+| `opus` | theorycrafting, impl-agent, debugger | Can take a clear brief and work alone |
+| `sonnet` | docs-and-cleanup, worktree-merger, test-validator | Exact tasks only. Stop and ask the lead when a decision comes up. |
 
 ## Agent Roster
 
 | Agent | Role |
 |-------|------|
-| codebase-investigator | Locates relevant files/code sections with light context |
-| code-analyser | Deep logic, dependency, and behavioral analysis of code |
+| Explore (built-in) | Locates and reads the relevant files and code sections |
 | theorycrafting | Feasibility assessment, approach evaluation, coarse phasing |
-| planning-agent | Detailed implementation plans: phases, tasks, dependencies |
-| plan-checker | Validates plans against codebase reality before execution |
+| Plan (built-in) | Implementation plans: phases, tasks, dependencies. The plan goes to the chat. |
 | impl-agent | Faithful code execution per plan directives |
 | test-validator | Runs tests, validates implementations, reports results |
 | debugger | Systematic debugging with persistent hypothesis tracking |
 | docs-and-cleanup | Aligns docs, type hints, and cleans dead code post-implementation |
-| team-leader | Multi-team orchestration, agent assignment, stop authority |
-| team-communicator | Centralized cross-team communication hub |
 | worktree-merger | Merges worktree branches after parallel agents complete |
 
 ## Pipeline Selection
@@ -44,22 +39,23 @@ The full suite and mutation tests run only when the user asks.
 | Task Type | Pipeline |
 |-----------|----------|
 | Trivial or single-file change | None. The orchestrator edits and verifies. |
-| Simple bug fix | impl-agent, test first. Add investigator and analyser only when the files are unknown. |
-| Feature (clear requirements) | investigator -> code-analyser -> planning-agent -> impl-agent -> test-validator -> docs-and-cleanup |
-| Architecture decision | investigator -> code-analyser -> theorycrafting |
-| Complex feature (unclear approach) | investigator -> code-analyser -> theorycrafting -> planning-agent -> impl-agent -> test-validator -> docs-and-cleanup |
-| Large-scale parallel changes | Full pipeline + team-leader for parallel execution |
+| Simple bug fix | impl-agent. Add Explore only when the files are unknown. |
+| Feature (clear requirements) | Explore -> Plan -> impl-agent -> test-validator -> docs-and-cleanup |
+| Architecture decision | Explore -> theorycrafting |
+| Complex feature (unclear approach) | Explore -> theorycrafting -> Plan -> impl-agent -> test-validator -> docs-and-cleanup |
+| Large-scale parallel changes | Full pipeline. The lead runs the parallel agents. |
 | Debugging session | debugger -> impl-agent -> test-validator |
-| Feature with plan validation | ...planning-agent -> plan-checker -> impl-agent... |
+
+test-validator runs only in Test After and Thorough Testing. Write the test first only in Thorough Testing.
 
 ## Team Structure
 
 | Condition | Structure |
 |-----------|-----------|
-| Linear dependency chain, ≤4 agents | Single team (you orchestrate) |
-| Independent parallel workstreams | Multi-team (deploy team-leader) |
-| Same task replicated N times | Homogeneous teams (deploy team-leader) |
-| Cross-cutting changes, shared interfaces | Multi-team + team-communicator |
+| Linear dependency chain | Single team (you orchestrate) |
+| Independent parallel workstreams | Multi-team. The lead orchestrates |
+| Same task replicated N times | Homogeneous teams. The lead orchestrates |
+| Cross-cutting changes, shared interfaces | Multi-team. The teams align through agent communication. The lead orchestrates |
 
 ## Scaling Impl-Agents
 
@@ -71,17 +67,17 @@ Impl-agents map to **independent sub-tasks**, not phases.
 | Phase has N independent sub-tasks | N parallel impl-agents (1 per sub-task) |
 | Multiple phases, each with sub-tasks | impl-agents per sub-task, respecting phase dependencies |
 | Large repetitive task (e.g., 20 files) | Homogeneous team: divide evenly across impl-agents |
-| Tightly coupled changes (shared state, ordering) | Fewer agents, sequential — avoid merge conflicts |
+| Tightly coupled changes (shared state, ordering) | Fewer agents, sequential: avoid merge conflicts |
 
-Run in parallel only work that shares no files and no processes. Respect team size limits (7 single-team, 14 multi-team).
+Run in parallel only work that shares no files and no processes. Start with few agents. Add agents when the task proves larger than you expected.
 
 ## Worktree Isolation
 
-### Session-Level Isolation (default — opt-out)
+### Session-Level Isolation (when another session is active)
 
-**All work-initiating commands** (`/new-feature`, `/new-project`, `/implement`, `/plan`, `/debug`) enter a worktree via `EnterWorktree` before doing any work. This is the **default behavior** — the user must explicitly opt out (e.g., "no worktree", "work in main", "skip worktree") to work directly on the main checkout.
+Before a work command (`/new-feature`, `/new-project`, `/debug`) starts, the lead finds out if another session works on the same repository. The lead examines `ListAgents` and `git worktree list`. If another session is active, the lead enters a worktree with `EnterWorktree`. If no other session is active, the lead works in the main checkout.
 
-This ensures that separate Claude Code tabs/sessions never conflict on the filesystem, even at the top level.
+The user can override this. Examples: "no worktree", "work in main", "use a worktree".
 
 ### Sub-Agent Isolation
 
@@ -94,32 +90,29 @@ When spawning agents that modify source code in parallel, use `isolation: "workt
 | Parallel impl-agents on independent tasks | **Yes** | Prevents source code conflicts |
 | Parallel impl-agents on tightly coupled code | No | Need shared state; run sequentially instead |
 | Single impl-agent (no parallel work) | No | No conflict risk |
-| Read-only agents (investigator, analyser, theorycrafting) | No | Don't modify files |
+| Agents that do not change source code (Explore, Plan, theorycrafting) | No | No source code changes. theorycrafting writes only notes and pings |
 | Debugger running alongside implementation | **Yes** | May run commands that conflict |
 | test-validator after worktree impl-agent | **Same worktree** (resume the agent) | Must validate against that agent's changes |
 | docs-and-cleanup after worktree impl-agent | **Same worktree** (resume the agent) | Must operate on that agent's changes |
 
 ### Agent Classification
 
-**Worktree-eligible** (modify source code — use worktree when parallel):
+**Worktree-eligible** (modify source code: use worktree when parallel):
 - `impl-agent`
 - `debugger`
 - `docs-and-cleanup`
 - `test-validator`
 
-**Never need worktree** (read-only or write only to `.planning/`):
-- `codebase-investigator`
-- `code-analyser`
+**Never need worktree** (no source code changes):
+- `Explore` (built-in)
+- `Plan` (built-in)
 - `theorycrafting`
-- `planning-agent` (writes to `.planning/` only — already namespaced by feature)
-- `plan-checker`
-- `team-communicator`
 
 ### Merging Worktree Results
 
 After worktree agents complete, deploy the `worktree-merger` agent to integrate their branches:
 1. Collect all completed worktree branch names and their task descriptions
-2. Determine merge order (respect dependency relationships — independent branches in any order, dependent branches in dependency order)
+2. Determine merge order (respect dependency relationships: independent branches in any order, dependent branches in dependency order)
 3. Spawn `worktree-merger` with the ordered branch list
 4. If the merger escalates conflicts, resolve with user input before continuing
 5. After merge completes cleanly, optionally run `test-validator` against the merged result
@@ -128,53 +121,24 @@ After worktree agents complete, deploy the `worktree-merger` agent to integrate 
 
 | Agent | Use When | Skip When |
 |-------|----------|-----------|
-| codebase-investigator | Unknown codebase, locating relevant code | Exact files already known |
-| code-analyser | Need deep understanding of existing logic | Simple change, no complex interactions |
+| Explore (built-in) | Unknown code, locating and reading the relevant code | Exact files already known |
 | theorycrafting | Multiple approaches, architectural decisions | Approach obvious or user decided |
-| planning-agent | Multi-step implementation needing phasing | Single-file or trivial change |
-| plan-checker | Complex multi-phase plans, unfamiliar codebase | Simple single-phase plans |
+| Plan (built-in) | Multi-step implementation that needs phases | Single-file or trivial change |
 | impl-agent | Code to write beyond a trivial change | No code changes, or a trivial change the orchestrator makes |
 | test-validator | A change to shared behavior | Trivial change, or a check that can fail already covers it |
 | debugger | Bug reproduction fails, systematic root cause needed | Simple/obvious bugs, typos |
 | docs-and-cleanup | Validated impl needs doc/type updates | Trivial change |
-| team-leader | Multiple parallel teams needed | Single-team work |
-| team-communicator | Parallel teams with shared interfaces | Single team |
 | worktree-merger | After parallel worktree agents complete | No worktrees used, single agent |
 
 ## State Management
 
-By default, plan in the chat. Keep the to-do items in `NEXT.md` on the board (`~/.claude/bin/board path next`). Put a handoff that the user asks for in `handoffs/` on the board.
+Plan in the chat. When the user approves a plan, the lead keeps it as one board memory node, `plan-<slug>`, until the work is done. No agent writes plan, checkpoint or deviation files in the repository.
 
-Use `.planning/` only when the user asks for a `.planning/` command. Then the active work state is in `.planning/` at the project root:
-
-### Project-Level (singleton)
-
-| File | Purpose | Owner |
-|------|---------|-------|
-| `PLAN.md` | Project-level plan with YAML frontmatter | planning-agent |
-| `CHECKPOINTS.md` | Project-level task completion log | impl-agent |
-| `DEVIATIONS.md` | Project-level plan deviation records | impl-agent |
-| `REQUIREMENTS.md` | Project requirements (from `/new-project`) | orchestrator |
-| `ROADMAP.md` | Multi-phase roadmap (from `/new-project`) | planning-agent |
-| `HANDOFF.md` | Session continuity — default (thin pointer) | orchestrator |
-| `handoffs/` | Named session handoffs (thin pointers) | orchestrator |
-| `archive/` | Archived plans | any |
-
-### Per-Feature (namespaced — parallel-safe)
-
-| Path | Purpose | Owner |
-|------|---------|-------|
-| `features/<slug>/REQUIREMENTS.md` | Feature requirements with FREQ-IDs | orchestrator |
-| `features/<slug>/CODEBASE.md` | Feature codebase map | codebase-investigator |
-| `features/<slug>/PLAN.md` | Feature implementation plan | planning-agent |
-| `features/<slug>/CHECKPOINTS.md` | Feature task completion log | impl-agent |
-| `features/<slug>/DEVIATIONS.md` | Feature plan deviation records | impl-agent |
-| `features/<slug>/archive/` | Archived feature plans | any |
-
-### Per-Debug-Session (namespaced — parallel-safe)
-
-| Path | Purpose | Owner |
-|------|---------|-------|
-| `debug/<slug>/DEBUG.md` | Debug session state | debugger |
-
-Agent memory (`.claude/agent-memory/`) = cross-session learning. `.planning/` = current work state.
+| Place | Holds |
+|-------|-------|
+| The chat | The plan draft, the checkpoints and the approved deviations |
+| `NEXT.md` on the board (`~/.claude/bin/board path next`) | The to-do items, the lane status and the decisions for the user |
+| `memory/` on the board (`~/.claude/bin/board path memory`) | The shared project memory, the approved plans (`plan-<slug>`: requirements, goals, done-criteria, the safe way) and the debug notes of the debugger |
+| `pings/` and the mailbox branches on the board | The agent communication |
+| `handoffs/` on the board | A handoff that the user asks for |
+| `.claude/agent-memory/<agent>/` | The learning of each agent from session to session |

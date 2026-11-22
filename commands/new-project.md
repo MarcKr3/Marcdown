@@ -1,212 +1,185 @@
-Initialize a new project with full discovery, planning, and execution pipeline.
+Start a new project with a full discovery and a plan.
 
 Arguments: $ARGUMENTS
 
-You are orchestrating a complete project setup. Follow these stages IN ORDER. Never skip a stage. Each stage requires explicit user approval before proceeding to the next.
+You lead the setup of a project. Do the stages in order. Each stage needs the approval of the user before the next stage starts.
 
 ---
 
-## Pre-Stage: Worktree Isolation (default)
+## Pre-Stage: Worktree isolation (when another session is active)
 
-**Before any other work**, check if this session is already in a worktree. If not:
+Before other work, find out if this session is in a worktree. If it is not:
 
-1. Use `EnterWorktree` with a name derived from the project (e.g., `EnterWorktree` with name `new-project` or a slug of the project name if known)
-2. This isolates the session so parallel work in other tabs cannot conflict
+1. Find out if another session works on this repository. Examine `ListAgents` and `git worktree list`. If no other session is active, work in the main checkout and skip steps 2 and 3.
+2. Use `EnterWorktree` with a name from the project, for example `new-project` or a short form of the project name.
+3. The worktree isolates the session. Then work in other tabs cannot conflict with it.
 
-**This is the default behavior.** Only skip if the user explicitly opts out (e.g., "no worktree", "work in main", "skip worktree").
+The user can override this. Examples: "no worktree", "work in main", "use a worktree".
 
 ---
 
-## Stage 0: Input Analysis (if files provided)
+## Stage 0: Input analysis (when the user gives files)
 
-If the user provided file paths as arguments, this stage runs BEFORE discovery. If no files were provided, skip directly to Stage 1.
+If the arguments give file paths, do this stage before the discovery. If the user gave no files, go to Stage 1.
 
-### Process:
-1. Read ALL provided files thoroughly — these are the user's existing project documents (briefs, outlines, specs, plans, notes, etc.)
-2. Produce a structured analysis:
+1. Read all of the files. They are the project documents of the user, for example briefs, outlines, specifications, plans and notes.
+2. Write this analysis:
 
 ```markdown
 ## Input Document Analysis
 
-### What's Already Defined
-- [List everything the documents clearly establish: vision, features, tech stack, audience, etc.]
+### What the documents define
+- [All that the documents state clearly: vision, features, tech stack, audience]
 
 ### Strengths
-- [What the documents do well: clear scope, detailed user flows, strong business case, etc.]
+- [What the documents do well: a clear scope, detailed user flows, a strong business case]
 
-### Blindspots
-- [Critical topics not addressed: deployment strategy, error handling, data model, auth, testing, etc.]
+### Gaps
+- [Important topics that the documents do not cover: deployment, error handling, data model, authentication, tests]
 
-### Ambiguities
-- [Things mentioned but left vague or contradictory]
+### Unclear items
+- [Items that are vague or that contradict each other]
 
-### Assumptions Detected
-- [Implicit assumptions that should be made explicit and validated]
+### Assumptions
+- [Assumptions that the documents make without a statement. The user must confirm them.]
 
-### Risks & Concerns
-- [Potential issues: scope creep signals, technical debt traps, unrealistic timelines, missing integrations, etc.]
+### Risks
+- [Possible problems: scope growth, technical debt, a timeline that is not realistic, missing integrations]
 
-### Questions Arising
-- [Specific questions the documents raise but don't answer]
+### Questions
+- [Questions that the documents raise but do not answer]
 ```
 
-3. Present this analysis to the user
-4. Proceed to Stage 1 with this context — the discovery rounds should focus on blindspots, ambiguities, and unanswered questions rather than re-asking what the documents already cover
+3. Show the analysis to the user.
+4. Go to Stage 1 with this context. In the discovery, ask about the gaps, the unclear items and the open questions. Do not ask again about what the documents cover.
 
 ---
 
-## Stage 1: Discovery Questioning
+## Stage 1: Discovery
 
-Your goal is to extract a complete mental model of what the user wants to build. This is NOT requirements gathering — this is dream extraction. Ask about the vision first, then drill into specifics.
+Get a complete picture of what the user wants to build. Ask about the vision first. Then ask about the details.
 
-**If Stage 0 ran**: You already have substantial context from the input documents. Do NOT re-ask what's already covered. Instead:
-- Validate your understanding of what the documents say ("The brief mentions X — is that still accurate?")
-- Focus discovery rounds on the blindspots, ambiguities, and questions identified in Stage 0
-- Probe areas the documents are weakest on
-- Challenge assumptions you detected
-- Still cover all 4 round topics, but skip/shorten questions where documents already gave clear answers
+**If Stage 0 ran:**
+- Confirm what the documents state, for example: "The brief mentions X. Is that still correct?"
+- Ask about the gaps and the unclear items of Stage 0.
+- Ask about the assumptions that you found.
+- Cover the 4 round topics. Skip a topic when the documents answer it clearly.
 
-### Round 1 — Vision & Context (ask 5-7 questions)
-- What is this project? What problem does it solve?
-- Who is it for? Who are the end users?
-- What does success look like in 3 months? In 1 year?
-- What's the driver — why now? What's the urgency?
-- Is this greenfield (new) or brownfield (existing codebase)?
-- What's your role — solo dev, team, client work?
-- Any hard constraints? (deadline, budget, platform, tech stack requirements)
+### Round 1: Vision and context
+Ask only what the input does not answer. Topics:
+- What the project is, and the problem that it solves.
+- The audience and the end users.
+- Success after 3 months and after 1 year.
+- The reason for the project now, and the urgency.
+- A new codebase or an existing codebase.
+- The role of the user: solo developer, team or client work.
+- Hard constraints: deadline, budget, platform, tech stack.
 
-### Round 2 — Technical Shape (ask 5-7 questions, building on Round 1)
-- What tech stack are you leaning toward? Any non-negotiables?
-- What are the core user flows? Walk me through the main one.
-- What data does this system manage? What are the key entities?
-- What integrations are needed? (APIs, auth providers, payment, email, etc.)
-- What's the deployment target? (Vercel, AWS, self-hosted, etc.)
-- What's the testing strategy? (TDD, integration tests, manual?)
-- Any performance requirements? Scale expectations?
+### Round 2: Technical shape
+Ask only what the input and Round 1 do not answer. Topics:
+- The tech stack, and the items that cannot change.
+- The core user flows. The main flow, step by step.
+- The data that the system manages, and the key entities.
+- The integrations: APIs, authentication, payment, email.
+- The deployment target.
+- The test strategy: test first, integration tests or manual tests.
+- Performance and scale.
 
-### Round 3 — Scope & Priorities (ask 4-6 questions, building on Rounds 1-2)
-- What's MVP vs full vision? Where do you draw the line for v1?
-- What features are absolutely critical for launch?
-- What can be deferred to v2?
-- Are there features you've seen elsewhere you want to replicate?
-- What's explicitly OUT of scope?
-- Risk tolerance — prototype quality or production-grade from day 1?
+### Round 3: Scope and priorities
+Ask only what the earlier rounds do not answer. Topics:
+- The minimum viable product against the full vision. The limit for version 1.
+- The features that are necessary for the launch.
+- The features that can wait for version 2.
+- Features from other products that the user wants.
+- What is out of scope.
+- The quality: a prototype, or production quality from the start.
 
-### Round 4 — Edge Cases & Unknowns (ask 3-5 questions)
-- What's the hardest part of this project?
-- What are you most uncertain about?
-- Have you built something like this before? What went wrong?
-- Any regulatory, compliance, or security requirements?
-- What would make you abandon this project?
+### Round 4: Edge cases and unknowns
+Ask only what the earlier rounds do not answer. Topics:
+- The most difficult part of the project.
+- The largest uncertainty.
+- Similar projects in the past, and what went wrong.
+- Regulatory, compliance and security requirements.
+- What can stop the project.
 
-**Rules for questioning:**
-- **Use `AskUserQuestion` for ALL discovery questions.** Never ask as plain text. Batch up to 4 questions per call.
-- Ask one round at a time. Wait for answers.
-- Build on previous answers — don't re-ask what's been covered.
-- If an answer is vague, probe deeper with follow-ups.
-- Reflect understanding back: "So what I'm hearing is..." to validate.
-- Continue rounds until you have a clear, complete picture.
-- It's OK to ask 5+ rounds if the project is complex.
+**Rules for the questions:**
+- Ask the discovery questions with `AskUserQuestion`, up to 4 questions in each call.
+- Ask one round at a time. Wait for the answers.
+- Do not ask again about a topic that an answer or a document covers.
+- If an answer is not clear, ask a follow-up question.
+- Tell the user what you understand, so that the user can correct it.
+- Continue with more rounds until the picture is clear and complete. A complex project can need more than 4 rounds.
 
-**Stage 1 exit**: Present a brief project summary back to the user. Ask: "Does this capture your project accurately? Anything to add or correct?" Get explicit approval.
+**Stage 1 exit**: Give the user a short summary of the project. Ask: "Is this summary of the project correct? Must I add or correct something?" Get the approval of the user.
 
 ---
 
-## Stage 2: Requirements Crystallization
+## Stage 2: Requirements
 
-Transform the discovery answers into a structured requirements document.
-
-Write `.planning/REQUIREMENTS.md` using the template from `~/.claude/templates/REQUIREMENTS.md`.
+Write the requirements in the chat.
 
 **Rules:**
-- Every requirement gets a REQ-ID for traceability
-- Every requirement has acceptance criteria (how to know it's done)
-- Must-haves are truly must-haves — be ruthless about scope
-- Reference specific user answers to justify priority decisions
+- Give each requirement an ID, for example REQ-1, so that the plan can refer to it.
+- Give each requirement acceptance criteria: how to know that it is done.
+- Keep the must-have list strict.
+- Give the answer of the user that sets the priority of each requirement.
 
-**Stage 2 exit**: Present the full requirements doc to the user. Ask: "Are these requirements complete and correctly prioritized?" Get explicit approval. Revise if needed.
-
----
-
-## Stage 3: Research & Codebase Mapping
-
-### 3a: Codebase Mapping (brownfield projects only)
-If the user said this is an existing codebase:
-1. Launch a codebase-investigator agent to map the existing project
-2. Produce a summary of: architecture, tech stack, key files, conventions, integration points, technical debt
-3. Write findings to `.planning/CODEBASE.md`
-
-### 3b: Tech Research
-For key technical decisions identified in Stage 1-2:
-1. Research the ecosystem — what libraries, frameworks, patterns are recommended?
-2. Identify potential pitfalls and best practices
-3. Write findings to `.planning/RESEARCH.md`
-
-If the tech stack is well-known to you and the user has clear preferences, this stage can be brief. Don't over-research obvious choices.
-
-**Stage 3 exit**: Present research findings. Ask: "Any concerns with these technical choices?" Get acknowledgment.
+**Stage 2 exit**: Ask: "Are these requirements complete, and is the priority correct?" Get the approval of the user. Correct the requirements if necessary.
 
 ---
 
-## Stage 4: Roadmap & Phase Planning
+## Stage 3: Codebase map and technical research
 
-Propose a team architecture for planning:
-```
-Proposed Team Architecture:
-- Pipeline: planning-agent
-- Structure: single-team
-- Agent count: 1
-- Reasoning: Planning from crystallized requirements
-```
+### 3a: Codebase map (existing codebase only)
+If the project has an existing codebase:
+1. Launch the built-in Explore agent to map the project.
+2. Give the user a short summary in the chat: architecture, tech stack, key files, conventions, integration points and technical debt.
 
-The planning-agent should:
-1. Read `.planning/REQUIREMENTS.md` (and `.planning/CODEBASE.md`, `.planning/RESEARCH.md` if they exist)
-2. Create a phased roadmap in `.planning/ROADMAP.md` using the template from `~/.claude/templates/ROADMAP.md`
-3. Ensure 100% requirement coverage — every REQ-ID maps to a phase
-4. Create detailed `.planning/PLAN.md` for Phase 1 (with proper YAML frontmatter)
-5. Subsequent phase plans are created when each phase begins (not all upfront)
+### 3b: Technical research
+For the key technical decisions of Stage 1 and Stage 2:
+1. Find the recommended libraries, frameworks and patterns. Use your knowledge and the documents of the user. Do not run web searches.
+2. Find the possible problems and the best practices.
+3. Give the findings to the user in the chat.
 
-**Stage 4 exit**: Present the roadmap and Phase 1 plan. Ask: "Does this phasing make sense? Ready to validate and begin?" Get explicit approval.
+If you know the tech stack well and the user has clear preferences, keep this stage short.
+
+**Stage 3 exit**: Ask: "Do you see a problem with these technical choices?" Get the acknowledgment of the user.
 
 ---
 
-## Stage 5: Plan Validation
+## Stage 4: Roadmap and phase plan
 
-Launch the plan-checker agent to validate the Phase 1 plan against codebase reality (if brownfield) or for internal consistency (if greenfield).
+Launch the built-in Plan agent with the requirements of Stage 2 and the findings of Stage 3. The plan must give:
+- The goals. Connect each requirement ID to a goal.
+- For each goal, how to know that the goal is reached.
+- The way to each goal, with its safety points: the risks, what must not break, and how to go back.
+- The phases. Connect each goal to a phase.
+- The tasks of Phase 1 only. The tasks of each later phase are planned when that phase starts.
 
-Report validation results. If REVISIONS NEEDED, send back to planning-agent and re-validate.
+Give the roadmap and the Phase 1 plan to the user in the chat.
 
-**Stage 5 exit**: Plan validated and APPROVED.
+**Stage 4 exit**: Ask: "Is this phase division correct? Can the work start?" Get the approval of the user.
 
 ---
 
-## Stage 6: Execution Kickoff
+## Stage 5: Kickoff
 
-Announce that the project is ready for execution:
+1. Get the memory folder with `~/.claude/bin/board path memory`. If the board is not set up, tell the user, give the command `~/.claude/bin/board setup`, and stop.
+2. Write the approved plan as one memory node `plan-<slug>.md`, in strict STE. Give it this frontmatter: `name: plan-<slug>`, a one-line `description`, and `metadata.type: project`. The node holds the approved requirements (ID, text and acceptance criteria), the goals, how to know that each goal is reached, the safe way to each goal, and the phases.
+3. Add one line to `MEMORY.md` that points to the node. End the line with the date.
+4. Write the phases and the tasks of Phase 1 as to-do items in `NEXT.md` on the board (`~/.claude/bin/board path next`). Each item names its goal and points to `plan-<slug>`.
+5. When a later phase starts, add its tasks to the node and to `NEXT.md`. Delete the node and its line in `MEMORY.md` when the work is done.
+
+Then tell the user:
 
 ```
-PROJECT INITIALIZED
-==================
+PROJECT READY
+=============
 Project: [Name]
 Phases: [N]
-Current: Phase 1 — [Name]
-Plan: .planning/PLAN.md (validated)
-
-Ready to execute. Use:
-- /implement — to start Phase 1 execution
-- /status — to check progress
-- /status — for full dashboard
+Current: Phase 1, [Name]
+Plan: memory node plan-<slug> on the board
+To-do items: NEXT.md on the board
 ```
 
-Do NOT auto-start execution. Present the status and let the user decide when to begin with `/implement`.
-
----
-
-## Files Created by This Pipeline
-| File | Stage | Purpose |
-|------|-------|---------|
-| `.planning/REQUIREMENTS.md` | Stage 2 | Structured requirements with REQ-IDs |
-| `.planning/CODEBASE.md` | Stage 3a | Existing codebase map (brownfield only) |
-| `.planning/RESEARCH.md` | Stage 3b | Tech research findings |
-| `.planning/ROADMAP.md` | Stage 4 | Phased roadmap with requirement traceability |
-| `.planning/PLAN.md` | Stage 4 | Detailed Phase 1 implementation plan |
+Do not start the work. The user decides when the work starts.

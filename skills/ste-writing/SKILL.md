@@ -1,6 +1,6 @@
 ---
 name: ste-writing
-description: Rewrite prose (docs, READMEs, PR descriptions, error messages, release notes, comments, tool descriptions, system prompts — never code) into ASD-STE100 Simplified Technical English to remove "AI slop". Use when asked to make writing not sound like AI, make docs clear or plain, enforce a controlled writing style, review text for STE violations, or write technical documentation that reads human. Two modes — strict (procedures/safety) and STE-flavored (general prose).
+description: Rewrite prose (docs, READMEs, PR descriptions, error messages, release notes, comments, tool descriptions, system prompts, never code) into ASD-STE100 Simplified Technical English to remove "AI slop". Use when asked to make writing not sound like AI, make docs clear or plain, enforce a controlled writing style, review text for STE violations, or write technical documentation that reads human. Two modes: strict (procedures/safety) and STE-flavored (general prose).
 metadata:
   spec: ASD-STE100 Issue 9 (January 2025)
   source: https://github.com/woosal1337/blog/tree/main/videos/ep01-the-cure-for-ai-slop (run-openai.py omitted; linter kept)
@@ -8,20 +8,20 @@ metadata:
 
 # ste-writing
 
-Write prose in ASD-STE100 Simplified Technical English (Issue 9: 53 rules in 9 sections, 875 approved words). This applies to documentation, READMEs, pull-request text, error messages, release notes, comments, tool descriptions, system prompts, and agent-to-agent messages. It does not apply to code, identifiers, or command syntax. It is not for marketing copy, essays, or anything that needs a voice — STE strips voice on purpose.
+Write prose in ASD-STE100 Simplified Technical English (Issue 9: 53 rules in 9 sections, 875 approved words). This applies to documentation, READMEs, pull-request text, error messages, release notes, comments, tool descriptions, system prompts, and agent-to-agent messages. It does not apply to code, identifiers, or command syntax. It is not for marketing copy, essays, or anything that needs a voice. STE strips voice on purpose.
 
 Three ways to use it:
 
-- **write** — produce new text in STE.
-- **rewrite** — convert existing text to STE. Keep every fact.
-- **review** — do not rewrite. Output a table (`Rule | Original | Simplified`), one row per violation, then one line on anything you left alone and why.
+- **write**: produce new text in STE.
+- **rewrite**: convert existing text to STE. Keep every fact.
+- **review**: do not rewrite. Output a table (`Rule | Original | Simplified`), one row per violation, then one line on anything you left alone and why.
 
 ## Rules
 
 Numbers in parentheses are rule numbers in ASD-STE100 Issue 9.
 
 WORDS
-- Use one name for one thing (1.11, 9.4). Do not rotate check / verify / validate / confirm for the same action — pick one and reuse it. Certified STE uses "make sure" or "examine".
+- Use one name for one thing (1.11, 9.4). Do not rotate check / verify / validate / confirm for the same action. Pick one and reuse it. Certified STE uses "make sure" or "examine".
 - Use the short common word: start (not begin/commence/initiate), use (not utilize/leverage), help (not facilitate), make sure (not ensure/verify), do (not perform/conduct), give or supply (not provide), before (not prior to), after (not subsequent to), about (not regarding/concerning), get (not obtain/acquire), show (not demonstrate), also (not additionally/furthermore/moreover).
 - Give each word one meaning (1.3). "fall" means to move down, not to decrease.
 - No marketing adjectives: seamless, robust, powerful, cutting-edge, effortless, world-class, next-generation, revolutionary.
@@ -40,14 +40,15 @@ SENTENCES
 - One instruction per sentence, unless two actions happen at the same time (5.2). Max 20 words (instruction, 5.1), max 25 (descriptive, 6.3).
 - When a condition comes before its command, divide them with a comma (5.4): "If the test fails, read the log."
 - Do not drop words or articles to compress (4.2, 4.5): "Remove the bolts from the panel", never "Remove bolts from panel". No contractions.
-- Connect related sentences with plain connectors — then, but, thus, as a result (4.4). STE is short sentences, not disconnected ones.
+- Connect related sentences with plain connectors: then, but, thus, as a result (4.4). STE is short sentences, not disconnected ones.
 
 NOUNS
 - Multi-word nouns have at most three words (2.1). Unpack "the agent task queue priority handler" into "the handler that sets task-queue priority", or hyphenate.
 - Define an abbreviation at first use, then use the abbreviation.
 
 PUNCTUATION
-- No semicolons (8.1). Write two sentences. (Note: the em dash is not banned by STE, only the semicolon is — add "no em dash" yourself if you want it gone.)
+- No semicolons (8.1). Write two sentences.
+- No em dashes. Use a period or a comma.
 
 STRUCTURE
 - One topic per paragraph (6.5), max six sentences (6.6). For steps, use a numbered vertical list, one action per item, imperative form. Put a condition before its command.
@@ -63,19 +64,19 @@ STRUCTURE
 
 ## Modes
 
-- **strict** — procedures, runbooks, safety text, error messages: apply every rule and both length caps, plus the strict word set: but (not however), because (not since, for causes), can (not may), must (not should/shall), use or with (not using), obey (not follow, for instructions), push (not press, for physical controls). The spec's own list of the 39 most frequent writer errors is in [ste-recurring-errors.md](ste-recurring-errors.md).
-- **STE-flavored** — general prose (READMEs, PR descriptions, docs): apply the sentence, paragraph, tense, active-voice, noun-cluster, and no-phrasal-verb discipline; relax the 875-word dictionary lockdown and the strict word set so the text keeps enough range to read naturally.
+- **strict**: procedures, runbooks, safety text, error messages: apply every rule and both length caps, plus the strict word set: but (not however), because (not since, for causes), can (not may), must (not should/shall), use or with (not using), obey (not follow, for instructions), push (not press, for physical controls). The spec's own list of the 39 most frequent writer errors is in [ste-recurring-errors.md](ste-recurring-errors.md).
+- **STE-flavored**: general prose (READMEs, PR descriptions, docs): apply the sentence, paragraph, tense, active-voice, noun-cluster, and no-phrasal-verb discipline; relax the 875-word dictionary lockdown and the strict word set so the text keeps enough range to read naturally.
 
 ## Verify
 
-If you can run commands, lint the draft with the script that ships next to this skill. It is deterministic, costs no tokens, and gives an objective score — prefer it over grading the text yourself:
+Run the lint only for user-facing STE text, and only when it is truly needed. The script ships next to this skill. It is deterministic, costs no tokens, and gives an objective score:
 
 ```
-python3 ste-lint.py draft.md            # flavored target: under 2.5 per 100 words
-python3 ste-lint.py --strict draft.md   # strict target: under 1.5 per 100 words
+python3 ~/.claude/skills/ste-writing/ste-lint.py draft.md            # flavored target: under 2.5 per 100 words
+python3 ~/.claude/skills/ste-writing/ste-lint.py --strict draft.md   # strict target: under 1.5 per 100 words
 ```
 
-Fix the reported categories and lint again — at most two passes. Report the final score with the text. Do not present text as clean without a lint run. Useful flags: `--json` for machine-readable output, `--fail-over N` to exit 1 when the score is over N (CI gates, pre-commit hooks).
+Fix the reported categories and lint again, at most two passes. Report the final score with the text. Useful flags: `--json` for machine-readable output, `--fail-over N` to exit 1 when the score is over N (CI gates, pre-commit hooks).
 
 If you cannot run commands, use this checklist instead:
 
@@ -91,6 +92,6 @@ If you cannot run commands, use this checklist instead:
 
 ## Scope
 
-The mechanical rules above are lintable and are what removes slop. Full STE also needs human judgment (the right technical noun, whether a sentence "makes good sense") — the linter cannot certify that, and slop is not about that. This skill fixes the FORM of slop. It cannot make a hollow paragraph true.
+The mechanical rules above are lintable and are what removes slop. Full STE also needs human judgment (the right technical noun, whether a sentence "makes good sense"). The linter cannot certify that, and slop is not about that. This skill fixes the FORM of slop. It cannot make a hollow paragraph true.
 
 The full standard is free at https://asd-ste100.org (do not paste it in full; it is copyrighted). This skill is unofficial and not affiliated with ASD. ASD-STE100 is a registered EU trademark (No. 017966390).

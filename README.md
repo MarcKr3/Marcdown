@@ -1,25 +1,35 @@
-# **Humor**
-
 ## Marcdown
 
 An agent team framework for Claude Code. Adds structured multi-agent orchestration, slash commands, and quality guardrails to your `~/.claude/` setup.
 
 ## What's Included
 
-- **12 specialized agents** — from `codebase-investigator` to `worktree-merger`, each with defined roles and handoff rules
-- **19 slash commands** — `/plan`, `/implement`, `/debug`, `/handoff`, `/status`, and more
-- **Parallel-safe architecture** — feature namespacing + git worktree isolation for concurrent agent work
-- **CLAUDE.md** — core rules: Fast, Medium or Thorough mode, agent automation, "Do X" is the approval, questions on design choices, evidence before claims, root cause before fix
-- **`bin/board`** — keeps the shared agent state of each project on branches of its own remote. This state is `NEXT.md`, a shared memory, pings and mailboxes. A sync job runs every 2 minutes on macOS, Windows and Linux.
-- **`ste-writing` skill** — writes docs, comments and messages in Simplified Technical English, with a linter (`ste-lint.py`)
-- **References & templates** — team framework docs, plan/debug/handoff templates
+- **6 specialized agents**: `debugger`, `docs-and-cleanup`, `impl-agent`, `test-validator`, `theorycrafting` and `worktree-merger`, each with defined roles and handoff rules. For code search and plans, use the built-in Explore and Plan agents.
+- **8 slash commands**: `/cleanup`, `/debug`, `/handoff`, `/marcdown-setup`, `/new-feature`, `/new-project`, `/review` and `/strategize`
+- **Parallel-safe architecture**: git worktree isolation for concurrent agent work
+- **CLAUDE.md**: core rules: No Test, Test After or Thorough Testing mode, agent automation, "Do X" is the approval, questions on design choices, evidence before claims, root cause before fix
+- **`bin/board`**: keeps the shared agent state of each project on branches of its own remote. This state is `NEXT.md`, a shared memory, pings and mailboxes. A sync job runs every 2 minutes on macOS, Windows and Linux.
+- **`ste-writing` skill**: writes docs, comments and messages in Simplified Technical English, with a linter (`ste-lint.py`)
+- **References & templates**: team framework docs and the handoff template
 
 ## Install
 
-**Back up your existing `~/.claude/` setup first if you have custom configurations.**
+The recommended way is `/marcdown-setup`. It shows each change and asks you about it with questions before it installs anything. It also asks what to do with the files that you changed yourself.
+
+**First install** (the command is not on this computer yet):
+
+1. Clone the repository:
+
+   ```bash
+   git clone --depth 1 https://github.com/MarcKr3/Marcdown.git marcdown
+   ```
+
+2. Open Claude Code and give it this request: "Run the steps in `marcdown/commands/marcdown-setup.md` with the folder `marcdown`."
+
+**Alternative: the plain installer.** Back up your `~/.claude/` setup first if you have your own configuration. The installer asks for a confirmation, but it does not show the changes:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/MarcKr3/marcdown/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/MarcKr3/Marcdown/main/install.sh)
 ```
 
 To install from an unpacked zip, run the installer in the unpacked folder. It then copies from that folder and does not download anything:
@@ -28,7 +38,7 @@ To install from an unpacked zip, run the installer in the unpacked folder. It th
 bash marcdown/install.sh
 ```
 
-This copies framework files directly into `~/.claude/`. Files with identical names are overwritten. The installer will warn you and prompt for confirmation before proceeding.
+The installer copies the framework files into `~/.claude/` and writes over files with the same names. It also deletes the files that an earlier Marcdown version installed and that the new version does not ship. Your own files stay.
 
 **What gets installed:** `agents/`, `bin/`, `commands/`, `references/`, `templates/`, `skills/ste-writing/`, `CLAUDE.md`
 
@@ -46,10 +56,12 @@ The command checks out the board branches beside the project. It links the Claud
 
 ## Update
 
-Re-run the install script. It will download the latest version and overwrite existing framework files.
+In Claude Code, run `/marcdown-setup`. It gets the latest version, shows the new, changed and removed files, and asks you about each change before it installs.
+
+Alternative: run the install script again. It writes the latest version over the framework files without a review:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/MarcKr3/marcdown/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/MarcKr3/Marcdown/main/install.sh)
 ```
 
 ## Uninstall
@@ -57,5 +69,5 @@ bash <(curl -fsSL https://raw.githubusercontent.com/MarcKr3/marcdown/main/instal
 Removes all Marcdown-installed files, leaving a vanilla `~/.claude/` directory. Your own files (settings, projects, memory) are untouched.
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/MarcKr3/marcdown/main/install.sh) --uninstall
+bash <(curl -fsSL https://raw.githubusercontent.com/MarcKr3/Marcdown/main/install.sh) --uninstall
 ```
