@@ -18,7 +18,7 @@ You are an implementation engineer: you translate plan directives into clean, wo
 ## Wiring
 
 - **Upstream**: orchestrator (the lead, with the plan directive)
-- **Downstream**: orchestrator (completion report; in Test After and Thorough Testing, the orchestrator then routes to test-validator)
+- **Downstream**: orchestrator (completion report; the orchestrator then routes to test-validator)
 
 ## Role Boundaries
 
@@ -73,7 +73,7 @@ Do not commit unless the directive says so.
 
 ## Checkpoints
 
-For each change, put one short checkpoint in your report to the orchestrator. In Thorough Testing, put one checkpoint for each phase. Give the task, the status (complete, partial or blocked), the changed files and your notes. Write the checkpoint in strict STE. Do not write checkpoint files.
+For each change, put one short checkpoint in your report to the orchestrator. In Loop, put one checkpoint for each goal. Give the task, the status (complete, partial or blocked), the changed files and your notes. Write the checkpoint in strict STE. Do not write checkpoint files.
 
 ## Deviation Protocol
 

@@ -49,7 +49,7 @@ The user can override this. Examples: "no worktree", "work in main", "use a work
 
 ---
 
-## Stage 1: Feature discovery (2 rounds)
+## Stage 1: Feature discovery (3 rounds)
 
 If Stage 0 did not find the feature name, find it in this stage.
 
@@ -69,6 +69,15 @@ Ask only what the input and Round 1 do not answer. Topics:
 - API contracts, database changes and UI parts.
 - Performance, security and backward compatibility.
 - The effect on the existing tests, and new test infrastructure.
+
+### Round 3: Hidden context
+Ask only what the input and the earlier rounds do not answer. Ask about the things that the code cannot show:
+- External systems, and the services that are old or have no documentation.
+- The people and the owners: who decides, who uses it, who maintains the systems around it.
+- Money: costs, prices, accounts and limits.
+- Legal and compliance limits.
+
+Store each answer as one memory node on the board (`~/.claude/bin/board path memory`), with frontmatter (`name`, `description`, `metadata.type: project`) and one line in `MEMORY.md` that ends with the date. Record only what a session cannot find in the code.
 
 **Rules for the questions:**
 - Ask the discovery questions with `AskUserQuestion`, up to 4 questions in each call.
@@ -125,7 +134,7 @@ Give the plan to the user in the chat.
 
 ## Stage 5: Kickoff
 
-1. Get the memory folder with `~/.claude/bin/board path memory`. If the board is not set up, tell the user, give the command `~/.claude/bin/board setup`, and stop.
+1. Get the memory folder with `~/.claude/bin/board path memory`. If the board is not set up, do the one-time project setup of `~/.claude/CLAUDE.md` first. Then continue.
 2. Write the approved plan as one memory node `plan-<slug>.md`, in strict STE. Give it this frontmatter: `name: plan-<slug>`, a one-line `description`, and `metadata.type: project`. The node holds the approved requirements (ID, text and acceptance criteria), the goals, how to know that each goal is reached, and the safe way to each goal.
 3. Add one line to `MEMORY.md` that points to the node. End the line with the date.
 4. Write the tasks of the plan as to-do items in `NEXT.md` on the board. Each item names its goal and points to `plan-<slug>`.

@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# verify-hook: a Stop hook for Loop runs (Marcdown).
+# It does nothing unless the project has .claude/loop.json, which /loop-setup writes for a Loop run.
+# It runs the verify command of the loop. A failure exits 2, so that Claude must fix it before it stops.
+# After 3 failures in a row it lets Claude stop and writes .claude/loop.stuck, so that the Loop reports "stuck" and does not run forever.
+set -u
+
+input="$(cat)"
+# A Loop works in its own worktree, so look in the current folder of the session first,
+# then in the top of its git checkout, then in the folder where the session started.
+cwd="$(printf '%s' "$input" | python3 -I -c 'import json,sys
+try: print(json.load(sys.stdin).get("cwd",""))
+except Exception: print("")')"
+dir=""
+for d in "$cwd" "$( [ -n "$cwd" ] && git -C "$cwd" rev-parse --show-toplevel 2>/dev/null )" "${CLAUDE_PROJECT_DIR:-}"; do
+  if [ -n "$d" ] && [ -f "$d/.claude/loop.json" ]; then dir="$d"; break; fi
+done
+[ -n "$dir" ] || exit 0
+conf="$dir/.claude/loop.json"
+
+verify="$(python3 -I -c 'import json,sys
+try: print(json.load(open(sys.argv[1])).get("verify",""))
+except Exception: print("")' "$conf")"
+count_file="$dir/.claude/loop.verify-fails"
+stuck_file="$dir/.claude/loop.stuck"
+log="$(mktemp)"
+trap 'rm -f "$log"' EXIT
+
+if [ -z "$verify" ]; then
+  echo "$conf has no \"verify\" command. Add it, or delete the file to end the Loop." > "$log"
+elif (cd "$dir" && bash -c "$verify") >"$log" 2>&1; then
+  rm -f "$count_file" "$stuck_file"
+  exit 0
+fi
+
+fails=$(( $(cat "$count_file" 2>/dev/null || echo 0) + 1 ))
+echo "$fails" > "$count_file"
+if [ "$fails" -ge 3 ]; then
+  # Claude does not see stderr when a hook exits 0, so the reason goes to a file that the Loop report reads.
+  { echo "The verify command failed $fails times in a row. The Loop is stuck."; echo "Command: $verify"; tail -n 40 "$log"; } > "$stuck_file"
+  rm -f "$count_file"
+  exit 0
+fi
+{
+  echo "verify-hook: the done-checks of the Loop fail (attempt $fails of 3). Fix the cause before you stop."
+  echo "Command: $verify"
+  echo "Last lines of the output:"
+  tail -n 40 "$log"
+} >&2
+exit 2

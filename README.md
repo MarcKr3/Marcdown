@@ -5,9 +5,10 @@ An agent team framework for Claude Code. Adds structured multi-agent orchestrati
 ## What's Included
 
 - **6 specialized agents**: `debugger`, `docs-and-cleanup`, `impl-agent`, `test-validator`, `theorycrafting` and `worktree-merger`, each with defined roles and handoff rules. For code search and plans, use the built-in Explore and Plan agents.
-- **8 slash commands**: `/cleanup`, `/debug`, `/handoff`, `/marcdown-setup`, `/new-feature`, `/new-project`, `/review` and `/strategize`
+- **9 slash commands**: `/cleanup`, `/debug`, `/handoff`, `/loop-setup`, `/marcdown-setup`, `/new-feature`, `/new-project`, `/review` and `/strategize`
 - **Parallel-safe architecture**: git worktree isolation for concurrent agent work
-- **CLAUDE.md**: core rules: No Test, Test After or Thorough Testing mode, agent automation, "Do X" is the approval, questions on design choices, evidence before claims, root cause before fix
+- **CLAUDE.md**: core rules: one start question for larger work (small requests skip it), Live (you are at the computer) or Loop (you are away, `/loop-setup` first), "Do X" is the approval, questions on design choices, parked questions in a Loop, review depth by risk, evidence before claims, root cause before fix, record only what the code cannot tell
+- **Safety and checks**: `/marcdown-setup` adds a verify hook that blocks the end of a Loop run while a done-check fails. The first time that Claude works in a project, it asks one time: apply the defaults (deny rules for acts that cannot be undone, the board, the folder as a trusted place) or customize them. The OS sandbox is an option in each Loop
 - **`bin/board`**: keeps the shared agent state of each project on branches of its own remote. This state is `NEXT.md`, a shared memory, pings and mailboxes. A sync job runs every 2 minutes on macOS, Windows and Linux.
 - **`ste-writing` skill**: writes docs, comments and messages in Simplified Technical English, with a linter (`ste-lint.py`)
 - **References & templates**: team framework docs and the handoff template

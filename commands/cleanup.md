@@ -9,4 +9,4 @@ Launch the docs-and-cleanup agent. Tell it to:
 4. Remove the unused imports and the dead code that the implementation left.
 5. Make sure that the code is clean and that its documentation is correct.
 
-Run this after the checks of the current mode pass: the compile check in No Test, the tests of the changed code in Test After and Thorough Testing.
+Run this after the checks of the mode pass: the build and the affected tests in Live, the done-checks of the loop node in Loop.

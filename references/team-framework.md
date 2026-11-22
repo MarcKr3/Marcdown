@@ -4,13 +4,12 @@ Load this file when planning agent team composition. Not needed for simple tasks
 
 ## Modes
 
-The user selects the mode and the agent automation at the start of the chat (`~/.claude/CLAUDE.md`).
+For work that is large enough for a Loop, the lead asks one question before the first change: is the user at the computer? Small requests use Live and do not ask. (`~/.claude/CLAUDE.md`)
 
 | Mode | Development | Checks after development | Device checklist |
 |------|-------------|--------------------------|------------------|
-| No Test | Agents can develop | Build or compile only | User, or the agent when automation is Yes |
-| Test After | Agents can develop | Tests of the changed code and the shared behavior, then install | User, or the agent when automation is Yes |
-| Thorough Testing | Test first, team scaled to the risk | Tests of the changed code and the shared behavior, then install | User, or the agent when automation is Yes |
+| Live (user present) | Agents can develop. Test first only on request, or for shared behavior or stored data | Build and the tests of the changed code and the shared behavior, then install | The user |
+| Loop (user away) | `/loop-setup` first. Test first for each goal, team scaled to the risk | The done-checks of the loop node, enforced by the verify hook | The agent, with device automation. Items it cannot check go to the report |
 
 The full suite and mutation tests run only when the user asks.
 
@@ -46,7 +45,7 @@ The full suite and mutation tests run only when the user asks.
 | Large-scale parallel changes | Full pipeline. The lead runs the parallel agents. |
 | Debugging session | debugger -> impl-agent -> test-validator |
 
-test-validator runs only in Test After and Thorough Testing. Write the test first only in Thorough Testing.
+test-validator runs in Live and in Loop. In Loop, write each done-check first and make sure that it fails. In Live, write the test first only on request, or for shared behavior or stored data.
 
 ## Team Structure
 
@@ -116,6 +115,7 @@ After worktree agents complete, deploy the `worktree-merger` agent to integrate 
 3. Spawn `worktree-merger` with the ordered branch list
 4. If the merger escalates conflicts, resolve with user input before continuing
 5. After merge completes cleanly, optionally run `test-validator` against the merged result
+6. Then clean up the merged branches and their worktrees with the steps in the Git section of `~/.claude/CLAUDE.md`
 
 ## Agent Selection
 

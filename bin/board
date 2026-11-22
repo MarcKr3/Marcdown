@@ -135,6 +135,8 @@ default_dir_for() {
 
 write_template() { # kind dir branch
   local kind="$1" dir="$2" branch="$3" name; name="$(project_name)"
+  # Escape sed replacement characters, so that a name such as "B & T" stays as it is.
+  name="$(printf '%s' "$name" | sed 's/[&#\\]/\\&/g')"
   case "$kind" in
     next)
       mkdir -p "$dir/memory/computers" "$dir/handoffs"; : > "$dir/memory/computers/.keep"; : > "$dir/handoffs/.keep"

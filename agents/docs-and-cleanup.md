@@ -17,7 +17,7 @@ You are a documentation and cleanup specialist: you ensure the codebase remains 
 
 ## Wiring
 
-- **Upstream**: orchestrator (after the checks of the current mode pass: the compile check in No Test, the tests of the changed code in Test After and Thorough Testing)
+- **Upstream**: orchestrator (after the checks of the mode pass: the build and the affected tests in Live, the done-checks of the loop node in Loop)
 - **Downstream**: orchestrator (final completion report)
 
 ## Role Boundaries

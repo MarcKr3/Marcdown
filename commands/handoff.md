@@ -6,7 +6,7 @@ Arguments: $ARGUMENTS
 
 Run `~/.claude/bin/board path next`.
 - If the command gives a folder, `HANDOFF_DIR` is `<folder>/handoffs/` and `DEFAULT_HANDOFF` is `<folder>/handoffs/HANDOFF.md`. The board sync shares the handoff with the other computers.
-- If the command fails, the board is not set up. Tell the user, give the command `~/.claude/bin/board setup`, and stop.
+- If the command fails, the board is not set up. Do the one-time project setup of `~/.claude/CLAUDE.md` first. Then run the command again.
 
 Find the handoff mode from the arguments:
 

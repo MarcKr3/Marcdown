@@ -1,7 +1,7 @@
 Review recent changes against the plan: $ARGUMENTS
 
 1. **Scope:** the files that `$ARGUMENTS` names. If `$ARGUMENTS` names no files, use the recent changes.
-2. Get the goals, the done-criteria and the safety points from the plan node `plan-<slug>.md` in the board memory (`~/.claude/bin/board path memory`). Get the open items from `NEXT.md` (`~/.claude/bin/board path next`). If no plan node exists, use the plan in the chat. If the board is not set up, tell the user and give the command `~/.claude/bin/board setup`.
+2. Get the goals, the done-criteria and the safety points from the plan node `plan-<slug>.md` in the board memory (`~/.claude/bin/board path memory`). Get the open items from `NEXT.md` (`~/.claude/bin/board path next`). If no plan node exists, use the plan in the chat. If the board is not set up, do the one-time project setup of `~/.claude/CLAUDE.md` first. Then continue.
 3. Read the git diff or the recent commits. Find what the change does.
 4. Compare the change with the plan:
    - Does the code reach the goals by their done-criteria?

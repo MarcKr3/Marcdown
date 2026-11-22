@@ -13,50 +13,57 @@ When two of these conflict, tell the user about the conflict and wait. The answe
 
 # Start of a chat
 
-Before the first step that changes code or files, ask two questions with `AskUserQuestion`. A chat that only answers questions or reads files does not ask them. Do not ask a question that the first message of the user already answers.
+Keep the start short. Ask only the questions that the work needs. Assume the defaults unless the user says otherwise.
 
-1. **Mode**: No Test, Test After or Thorough Testing.
-2. **Agent automation**: Yes or No. With Yes, the agent does the device checklist itself, with computer use or phone automation.
+For work that is large enough for a Loop, ask one question with `AskUserQuestion` before the first step that changes code or files: is the user at the computer for this work? Large enough means several steps or many files, for example a feature or a long series of fixes. Small requests use Live and do not ask: a question, a simple bug fix, a small edit. Do not ask when the first message of the user already answers it.
 
-Use the answers for the full chat, until the user changes them. A subagent does not ask. It uses the mode and the automation setting that its brief gives.
+- **Live**: the user is at the computer. Start the work.
+- **Loop**: the user is away. Run the `/loop-setup` interview now, in full, before any work starts.
+
+Use the answer for the full chat, until the user changes it. A subagent does not ask. It uses the mode that its brief gives.
+
+## One-time project setup
+
+The first time that you change files in a project with no Marcdown setup on this computer, ask one question with `AskUserQuestion`: apply the defaults, or customize them? With "customize", go through each default with the user. The defaults:
+
+1. The board: `~/.claude/bin/board setup --share-notes`. Before that, move personal notes (`type: user`) out of the memory folder, because they do not go on the board.
+2. The deny rules of `~/.claude/templates/settings-project.json` in `.claude/settings.local.json`.
+3. The folder as a trusted folder in `autoMode.environment` of `~/.claude/settings.json`.
+
+After the setup, write the choices to `.claude/marcdown-setup.json` in the project, and add that path to `.git/info/exclude`, so that git ignores it without a change to the project. A project has a Marcdown setup when this file exists. A project that already has its board and the Marcdown deny rules also has a Marcdown setup: write the file for it, and do not ask. When you make a worktree, copy the deny rules of the project into `.claude/settings.local.json` of the worktree, because git does not copy that file.
+
+After the setup, keep it as it is. Change it only when the user mentions a change. Do not ask about it again in a new chat.
 
 # Modes
 
-In each mode, agents can develop the work that the user decided.
+## Live
 
-## No Test
-
-The user tests the result. No time goes to test runs.
+The user is present. Work fast and test the work yourself.
 
 1. Develop the change.
-2. Run only the build or the compile check. If the project has a device, install the build on the device.
-3. Automation No: give the user a device checklist. Tell the user what to do and what a pass looks like.
-4. Automation Yes: do the device checklist yourself. Give the evidence, and a checklist of only the items that you could not test.
+2. Run the build or the compile check, and the unit tests of the changed code and of the shared behavior that the change touches.
+3. If the project has a device, install the build on the device.
+4. Give the user the device checklist: what to do and what a pass looks like.
+5. Write the test first only when the user asks, or when the change touches shared behavior or stored data.
 
-## Test After
+## Loop
 
-Develop as in No Test. Then test the result yourself.
+The user is away. The work is a self-running loop toward exact goals.
 
-1. Run the unit tests of the changed code and of the shared behavior that the change touches.
-2. Install the build on the device.
-3. Automation No: give the user the device checklist.
-4. Automation Yes: do the device checklist yourself. Give the evidence, for example screenshots or logs. Then give a checklist of only the items that you could not test.
-
-## Thorough Testing
-
-Scale the process to the risk with `~/.claude/references/team-framework.md`.
-
-1. Write the test first and make sure that it fails. Then write the code. Where no unit test can reach, make a different check fail first.
-2. A trivial or single-file change gets no agents. A logic change gets one impl-agent. An unclear cause gets the debugger first. Larger work gets a team from `team-framework.md`.
-3. After the development, do the device steps of Test After, with the same automation setting.
+1. Run `/loop-setup` before the loop starts. The lead interviews the user until each goal has a done-check that can fail. The result is one loop node on the board, `loop-<slug>`.
+2. For each goal, write its done-check first and make sure that it fails. Then write the code.
+3. The loop may commit on its own branch in its own worktree, push that branch, open a draft pull request, and install builds on the test device with device automation. It never merges and never pushes to the main branch.
+4. Obey the safety points of the loop node. If a step would break a safety point, find a way that does not break it. If there is no such way, park the step and continue with other work of the loop.
+5. Park each new design question in `NEXT.md` under "Decisions for the user", with a recommendation. Continue with work that does not depend on it. When only parked questions are left, use the recommended answer, record the decision in the loop node, and continue. The user can reverse it.
+6. Stop when one of these is true: all goals pass their done-checks; the budget of the loop node is reached; the loop is stuck (the same check fails after two fixes, or one full cycle moves no check). Then write the report. The setup chat, which stays open, sends the push notification.
 
 ## Mode changes
 
-When the work becomes risky, recommend a different mode in one line, and give the reason. Examples of risk: two failed fixes, a change to shared behavior, a change to stored data. Change the mode only when the user agrees.
+When the work becomes risky, recommend a different mode in one line, and give the reason. Change the mode only when the user agrees.
 
 # Tests
 
-- In Test After and Thorough Testing, run the tests of the changed code and of the shared behavior that the change touches.
+- Run the tests of the changed code and of the shared behavior that the change touches.
 - Run the full suite only when the user asks.
 - Run mutation tests only when the user asks.
 - When a rule in the model changes, update or add its unit test in the same change.
@@ -66,23 +73,24 @@ When the work becomes risky, recommend a different mode in one line, and give th
 - "Do X" is the approval for X. Do not ask for approval again.
 - "What does X need?" gets a short numbered list of the steps to a finished X. When the user agrees, do all the steps.
 - Do not interpret the request. If the request does not state a design choice, ask with `AskUserQuestion` before you continue. A design choice changes behavior, appearance, wording or scope.
+- In Loop, park a question instead of waiting (see Loop).
 - Ask the same way before a deviation from the agreed work. Ask also about a surprise that changes the scope or contradicts a ruling of the user.
 - Ask before you spend money, use external accounts or credentials, delete or overwrite data, deploy or release, or touch legal or privacy matters.
 
 # Git
 
-- Do not commit or push unless the user asks.
+- Do not commit or push unless the user asks. Exceptions: a Loop run commits and pushes its own branch (see Loop). When the user asks for a merge, commit the work of the branch and the merge, so that the cleanup below is safe.
 - Exception: commit and push the board branches without a question. These branches hold agent communication and agent knowledge: the mailbox branches, the agents branch with the pings, and `NEXT.md` and `memory/` on the board branch.
 - Do not push to the main branch directly.
-- After you merge your branch into the main branch, clean up the branch and all its worktrees. Do this only when no work stays on that branch. If the user told you to do the merge, this rule is the approval of the user for these deletions. If you did the merge with no instruction from the user for that merge, ask the user before you delete. Do these steps in this sequence:
+- Clean up a branch and all its worktrees when its work is in the main branch: right after a merge, and when a task that changes files starts. At the start of a task, examine all branches and worktrees of the project, and clean up each one whose work is in main and whose agent is not active (no ping, no live session). Do not ask the user first, also when someone else did the merge. This start-of-task cleanup removes only the local branch and its worktrees, never the remote branch. Tell the user in one line what you removed. Work is in main when the commits of the branch are in main, or, for a worktree with uncommitted changes, when each changed file is identical to the file in main. If one file differs, keep the worktree and name the file in the report. Do this only when no work stays on that branch. If the user told you to do the merge, this rule is the approval of the user for these deletions. If you did the merge with no instruction from the user for that merge, ask the user before you delete. The start-of-task cleanup above needs no question. Do these steps in this sequence:
   1. Make sure that the main branch contains the branch: its pull request shows "merged", or `git branch -r --merged origin/main` shows `origin/<branch>`.
-  2. Make sure that each worktree of the branch has no uncommitted or untracked files: `git -C <path> status --porcelain` shows nothing.
+  2. Make sure that each worktree of the branch has no uncommitted or untracked files: `git -C <path> status --porcelain` shows nothing. For a worktree whose changes were copied to main without commits, each changed file must be identical to the file in main instead.
   3. Make sure that each local commit is on the remote: `git log origin/<branch>..<branch>` shows nothing.
   4. Make sure that no other agent uses the branch or its worktrees: examine `git worktree list`, `ListAgents` and the pings.
   5. Remove each worktree with `git worktree remove <path>`. Do not use `--force`.
   6. Delete the local branch with `git branch -d <branch>`. After a squash merge, `-d` refuses. Then use `-D`, but only after steps 1 to 3 pass.
   7. If the remote branch is still there, delete it with `git push origin --delete <branch>`.
-- Do not delete the main branch, a board branch, or the branch of another agent.
+- Do not delete the main branch, a board branch, or the branch of another agent. A branch belongs to another agent while that agent is active: it has a ping or a live session.
 - Ask the user each time before you clean up the folder from which a computer runs the desktop app, or the branch of that folder.
 - If a step fails, stop. Delete nothing more and tell the user.
 
@@ -96,7 +104,8 @@ When the work becomes risky, recommend a different mode in one line, and give th
 
 # Reviews
 
-- An independent review runs only when the user asks for it.
+- Scale the review to the risk. Docs and wording get the self-review only. Shared behavior, stored data, money, security and legal matters get one fresh independent review. Propose the level, and the user decides.
+- Any other independent review runs only when the user asks for it.
 - When the user says that a development branch is complete, offer one final independent review. Use one new reviewer on the most capable model that is available, at high or xhigh effort as the task needs. Do not use the chat that built the work.
 
 # Agents and models
@@ -105,12 +114,15 @@ When the work becomes risky, recommend a different mode in one line, and give th
 - Each agent in `~/.claude/agents/` has a model tier. A strong model can take a clear brief and work alone.
 - A small model gets only exact tasks: the files, the change, and what done looks like. If a decision comes up, the small model stops and asks the lead.
 - An agent that does its task itself reports when it finishes. Do not examine it. Supervise agents through agent communication.
+- For a large task list, the lead can be an orchestrator: it gives parallel pieces to worker sessions, checks each result against its done-check, and sends incomplete work back.
 - When you wait idle for a build, a test run, an install, an upload or another computer, examine its progress after each fifth of the expected total time. For an expected time of 25 minutes, examine it every 5 minutes. If nothing moved, find the cause.
 
 # Planning and records
 
 - Plan in the chat. When the user approves a plan, keep it as one memory node on the board, `plan-<slug>`. The node gives the approved requirements, the goals, how to know that each goal is reached, and the way to each goal with its safety points: the risks, what must not break, and how to go back. Delete the node when the work is done.
+- A Loop run keeps its plan as one memory node, `loop-<slug>`, from `/loop-setup`.
 - Keep the to-do items in `NEXT.md` on the board.
+- When you must guess a fact that the code cannot show, record the guess and the missing fact in `NEXT.md` under "Decisions for the user". Then the next session gets the fact and not the guess.
 - Write a handoff only when the user asks. If the project has a board, put the handoff in `handoffs/` on the board.
 - Keep test output out of git.
 - A comment gives the reason in one or two sentences.
@@ -120,7 +132,7 @@ When the work becomes risky, recommend a different mode in one line, and give th
 Each project keeps the shared agent state on branches of its own git remote. These branches do not merge into the main branch.
 
 - Find the folders with `~/.claude/bin/board path next|memory|computer|agents|mailbox <name>`. Do not write a fixed path.
-- If the board is not set up on this computer, tell the user. Give the command `~/.claude/bin/board setup`.
+- If the board is not set up on this computer, do the one-time project setup (see Start of a chat).
 - `NEXT.md` holds the to-do list, the lane status and the decisions for the user. Read it at the start. Update it when you start, complete or block an item. Keep the current state only.
 - On a computer with the sync job, the job commits and pushes the board every 2 minutes. Without the job, run `~/.claude/bin/board sync` after you write.
 
@@ -128,6 +140,7 @@ Each project keeps the shared agent state on branches of its own git remote. The
 
 The shared project memory is `memory/` on the board. `board setup` links the Claude memory folder of each checkout and each worktree to it.
 
+- Record only what a session cannot find in the code: hidden dependencies, undocumented services, gotchas, the reason behind a rule, and rulings of the user. Do not record layouts, stacks or facts that the code already shows.
 - Read `MEMORY.md` first. Open the two to four nodes that match the task. Follow the links one step. Do not read the full folder.
 - Write one fact for each file, with frontmatter: `name`, `description`, `metadata.type` (user, feedback, project or reference). Add one line to `MEMORY.md`. End the line with the date of the fact.
 - Read a node again directly before you edit it, because another agent can change it.
@@ -161,7 +174,8 @@ These steps apply to tasks that change files or branches. A chat that only answe
 # Report
 
 - End each piece of work with a short report: what the user can do now, what to try, what a pass looks like, and what you did not test.
-- Write one short checkpoint for each change. In Thorough Testing, write one checkpoint for each phase.
+- In the report, list each point where the work needed the user. These points are the next candidates for automation.
+- Write one short checkpoint for each change. In Loop, write one checkpoint for each goal.
 
 # Context
 
