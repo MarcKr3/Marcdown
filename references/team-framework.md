@@ -9,7 +9,7 @@ For work that is large enough for a Loop, the lead asks one question before the 
 | Mode | Development | Checks after development | Device checklist |
 |------|-------------|--------------------------|------------------|
 | Live (user present) | Agents can develop. Test first only on request, or for shared behavior or stored data | Build and the tests of the changed code and the shared behavior, then install after the user says yes | The user |
-| Loop (user away) | `/loop-setup` first. Test first for each goal, team scaled to the risk | The done-checks of the loop node, enforced by the verify hook | The agent, with device automation. Items it cannot check go to the report |
+| Loop (user away) | `/loop-setup` first. Test first for each goal, team scaled to the risk | The done-checks of the loop node, enforced by the verify hook | With computer use in the loop node: the agent builds, runs and checks the app. Items it cannot check go to the report. Without computer use: no build, and the report asks the user if a check on the device is necessary |
 
 The full suite and mutation tests run only when the user asks.
 

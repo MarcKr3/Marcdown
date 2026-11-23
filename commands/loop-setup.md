@@ -48,6 +48,8 @@ Recommend one engine for this task, and ask the user to choose:
 - **Cloud sessions**: each task on a fresh, isolated machine with a clean clone. No local devices. Recommend it when the work needs no device and touches secrets on this computer.
 - **Workflow**: many agents in phases. It uses many tokens. Use it only with the explicit yes of the user.
 
+**Computer use.** Ask: "May this Loop use computer use to build and run the app on the test device?" Write the answer to the loop node. With a yes, the loop builds, installs and runs the app without a question. It then needs the local loop session. With a no, the loop does not build or run the app. Then the report at the stop asks the user if a check on the device is necessary.
+
 ## 5. Budget and stop conditions
 
 Get the budget: the maximum time and the maximum tokens. The loop stops when one of these is true:
@@ -80,7 +82,7 @@ During the run, the loop may also write a new memory node for a fact that it dis
 ## 9. Final yes and start
 
 1. Find out if a push notification can reach the user (the `PushNotification` tool needs Remote Control). If it cannot, say so in the summary: the stop then goes to `NEXT.md` and to the mailbox `group-loops` only.
-2. Show the user a short summary: the goals with their checks, the off-limits areas, the safety points, the sandbox, the engine, the permission mode of the loop session, the budget, the merge answer, the parked-question rule and how the user hears about the stop.
+2. Show the user a short summary: the goals with their checks, the off-limits areas, the safety points, the sandbox, the engine, the computer-use answer, the permission mode of the loop session, the budget, the merge answer, the parked-question rule and how the user hears about the stop.
 3. Get the final yes of the user. If the user says no, change the node with the user, or stop.
 4. Make the branch `loop-<slug>` and its worktree `loop-<slug>`.
 5. Copy the deny rules of the project into `.claude/settings.local.json` of the worktree, because git does not copy that file into a new worktree.
@@ -98,6 +100,6 @@ During the run, the loop may also write a new memory node for a fact that it dis
 2. If `.claude/loop.json` has `sandbox_before`, put that value back as `sandbox` in `.claude/settings.local.json` of the worktree. Then delete `.claude/loop.json`.
 3. If the loop node has the go to merge and all goals pass, mark the draft pull request as ready and merge it into the main branch. Do not clean up in the loop session. The setup chat does the cleanup in step 9.10. Else keep the worktree, the branch, its commits and the draft pull request for the review of the user. Delete nothing.
 4. Write the stop reason to `NEXT.md` under "Decisions for the user" and to the mailbox `group-loops` (`~/.claude/bin/board mailbox group-loops`): all goals pass, the budget is reached, or the loop is stuck. Write the stop reason in one line to `.claude/loop.stop`. The setup chat sends it as the push notification.
-5. Write the report: what the user can do now, what to try, what a pass looks like, what the loop did not check, and the decisions that the loop made for parked questions.
+5. Write the report: what the user can do now, what to try, what a pass looks like, what the loop did not check, and the decisions that the loop made for parked questions. If the loop node has no computer use, ask in the report if the user must check the change on the device.
 6. List each point where the run needed the user. These points are the next candidates for automation.
 7. Update `NEXT.md` and the loop node. Delete the node when all its goals are done.

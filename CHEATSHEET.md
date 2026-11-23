@@ -7,7 +7,7 @@ For work that is large enough for a Loop (a feature, a long series of fixes), Cl
 | Mode | When | How Claude works |
 |------|------|------------------|
 | **Live** | You are at the computer | Fast work. Claude runs the build and the tests of the changed code and the shared behavior, asks before it installs on the device, and gives you the device checklist. Test first only when you ask, or for shared behavior or stored data. |
-| **Loop** | You are away | `/loop-setup` first. Then a self-running loop toward exact goals. Each goal has a done-check that Claude writes first and sees fail. The loop works on its own branch, can commit, push, open a draft PR and install on the device. It merges into main only when all goals pass and you said yes to that in `/loop-setup`. After the merge, the setup chat cleans up the branch and the worktree. |
+| **Loop** | You are away | `/loop-setup` first. Then a self-running loop toward exact goals. Each goal has a done-check that Claude writes first and sees fail. The loop works on its own branch, can commit, merge main into its branch, push and open a draft PR. It builds and runs the app on the device only when you allowed computer use in `/loop-setup`. Without computer use, it asks at the end if you want to check on the device. It merges into main only when all goals pass and you said yes to that in `/loop-setup`. After the merge, the setup chat cleans up the branch and the worktree. |
 
 A Loop stops when all goals pass, the budget is reached, or it is stuck. Then you get a report. You also get a push notification on your phone if the setup chat stays open and Remote Control is on for it. Otherwise the stop is in `NEXT.md` and the mailbox `group-loops`.
 

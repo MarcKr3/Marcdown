@@ -54,10 +54,11 @@ The user is away. The work is a self-running loop toward exact goals.
 
 1. Run `/loop-setup` before the loop starts. The lead interviews the user until each goal has a done-check that can fail. The result is one loop node on the board, `loop-<slug>`.
 2. For each goal, write its done-check first and make sure that it fails. Then write the code.
-3. The loop may commit on its own branch in its own worktree, push that branch, open a draft pull request, and install builds on the test device with device automation. It merges into the main branch only with the go from `/loop-setup` (see Git). It never pushes to the main branch directly.
-4. Obey the safety points of the loop node. If a step would break a safety point, find a way that does not break it. If there is no such way, park the step and continue with other work of the loop.
-5. Park each new design question in `NEXT.md` under "Decisions for the user", with a recommendation. Continue with work that does not depend on it. When only parked questions are left, use the recommended answer, record the decision in the loop node, and continue. The user can reverse it.
-6. Stop when one of these is true: all goals pass their done-checks; the budget of the loop node is reached; the loop is stuck (the same check fails after two fixes, or one full cycle moves no check). Then write the report. The setup chat, which stays open, sends the push notification.
+3. The loop may commit on its own branch in its own worktree. It may merge the main branch into its branch, push that branch and open a draft pull request. It merges into the main branch only with the go from `/loop-setup` (see Git). It never pushes to the main branch directly.
+4. The loop builds and runs the app only when the loop node includes computer use. Then it builds, installs and runs the app on the test device without a question. Without computer use, the loop does not build or run the app. At the stop, the report asks the user if a check on the device is necessary.
+5. Obey the safety points of the loop node. If a step would break a safety point, find a way that does not break it. If there is no such way, park the step and continue with other work of the loop.
+6. Park each new design question in `NEXT.md` under "Decisions for the user", with a recommendation. Continue with work that does not depend on it. When only parked questions are left, use the recommended answer, record the decision in the loop node, and continue. The user can reverse it.
+7. Stop when one of these is true: all goals pass their done-checks; the budget of the loop node is reached; the loop is stuck (the same check fails after two fixes, or one full cycle moves no check). Then write the report. The setup chat, which stays open, sends the push notification.
 
 ## Mode changes
 
