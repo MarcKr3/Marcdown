@@ -55,6 +55,8 @@ Get the budget: the maximum time and the maximum tokens. The loop stops when one
 - The budget is reached.
 - The loop is stuck: the same check fails after two fixes, or one full cycle moves no check.
 
+Ask: "May this Loop merge into the main branch when all done-checks pass?" Write the answer to the loop node. A yes is the go of the user for that merge. Without a yes, the loop stops at its pull request, ready for the review of the user.
+
 ## 6. Parked questions
 
 Tell the user how the loop handles a new design question. It parks the question in `NEXT.md` under "Decisions for the user", with a recommendation. It continues with work that does not depend on the question. When only parked questions are left, it uses the recommendation, records the decision in the loop node, and continues. The user can reverse it later.
@@ -78,7 +80,7 @@ During the run, the loop may also write a new memory node for a fact that it dis
 ## 9. Final yes and start
 
 1. Find out if a push notification can reach the user (the `PushNotification` tool needs Remote Control). If it cannot, say so in the summary: the stop then goes to `NEXT.md` and to the mailbox `group-loops` only.
-2. Show the user a short summary: the goals with their checks, the off-limits areas, the safety points, the sandbox, the engine, the permission mode of the loop session, the budget, the parked-question rule and how the user hears about the stop.
+2. Show the user a short summary: the goals with their checks, the off-limits areas, the safety points, the sandbox, the engine, the permission mode of the loop session, the budget, the merge answer, the parked-question rule and how the user hears about the stop.
 3. Get the final yes of the user. If the user says no, change the node with the user, or stop.
 4. Make the branch `loop-<slug>` and its worktree `loop-<slug>`.
 5. Copy the deny rules of the project into `.claude/settings.local.json` of the worktree, because git does not copy that file into a new worktree.
@@ -88,13 +90,13 @@ During the run, the loop may also write a new memory node for a fact that it dis
    `cd <worktree> && nohup claude -p "<brief>" --permission-mode auto > .claude/loop.log 2>&1 &`
    The brief names the loop node `loop-<slug>`, says that this is a Loop of `~/.claude/CLAUDE.md`, and tells the session to do step 10 at the stop. Do not do the loop work in the setup chat.
 9. Tell the user that the loop runs, where its log is (`.claude/loop.log` in the worktree), and that the user can leave now. Keep this setup chat open: it sends the stop notification.
-10. Wait in this chat for the loop session to end: run a background Bash command that waits until its process exits. Then read the stop reason from `.claude/loop.stop` in the worktree, send it with the `PushNotification` tool in one line, and delete the file. This chat sends the push because it is the chat that Remote Control connects to the phone of the user. If the push is not sent, the note in `NEXT.md` and in the mailbox `group-loops` stays the record.
+10. Wait in this chat for the loop session to end: run a background Bash command that waits until its process exits. Then read the stop reason from `.claude/loop.stop` in the worktree, send it with the `PushNotification` tool in one line, and delete the file. This chat sends the push because it is the chat that Remote Control connects to the phone of the user. If the push is not sent, the note in `NEXT.md` and in the mailbox `group-loops` stays the record. If the loop merged its pull request, show the report from `.claude/loop.log` in this chat, because the cleanup removes the worktree with the log. Then clean up the branch and the worktree with the steps in the Git section of `~/.claude/CLAUDE.md`.
 
 ## 10. At the stop
 
 1. If `.claude/loop.stuck` exists, the verify hook stopped the loop as stuck. Put its text in the report, then delete the file.
 2. If `.claude/loop.json` has `sandbox_before`, put that value back as `sandbox` in `.claude/settings.local.json` of the worktree. Then delete `.claude/loop.json`.
-3. Keep the worktree, the branch, its commits and the draft pull request for the review of the user. Delete nothing.
+3. If the loop node has the go to merge and all goals pass, mark the draft pull request as ready and merge it into the main branch. Do not clean up in the loop session. The setup chat does the cleanup in step 9.10. Else keep the worktree, the branch, its commits and the draft pull request for the review of the user. Delete nothing.
 4. Write the stop reason to `NEXT.md` under "Decisions for the user" and to the mailbox `group-loops` (`~/.claude/bin/board mailbox group-loops`): all goals pass, the budget is reached, or the loop is stuck. Write the stop reason in one line to `.claude/loop.stop`. The setup chat sends it as the push notification.
 5. Write the report: what the user can do now, what to try, what a pass looks like, what the loop did not check, and the decisions that the loop made for parked questions.
 6. List each point where the run needed the user. These points are the next candidates for automation.

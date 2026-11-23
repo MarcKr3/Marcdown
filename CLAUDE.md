@@ -6,10 +6,12 @@
 # Precedence
 
 1. The words of the user in the chat.
-2. This file.
-3. The project files, for example `CLAUDE.md` and `AGENTS.md` in the project.
+2. The project files, for example `CLAUDE.md` and `AGENTS.md` in the project.
+3. This file.
 
-When two of these conflict, tell the user about the conflict and wait. The answer of the user decides.
+When a project file and this file conflict, stop one time. Tell the user about the conflict and wait. The answer of the user decides. Then record the ruling in the project file as one dated line, so that no chat asks the same question again. If a project file already has a dated ruling on the point, obey it and do not ask.
+
+When two other sources conflict, for example two project files, tell the user about the conflict and wait. The answer of the user decides.
 
 # Start of a chat
 
@@ -42,7 +44,7 @@ The user is present. Work fast and test the work yourself.
 
 1. Develop the change.
 2. Run the build or the compile check, and the unit tests of the changed code and of the shared behavior that the change touches.
-3. If the project has a device, install the build on the device.
+3. Always ask the user before you install a build on a device.
 4. Give the user the device checklist: what to do and what a pass looks like.
 5. Write the test first only when the user asks, or when the change touches shared behavior or stored data.
 
@@ -52,7 +54,7 @@ The user is away. The work is a self-running loop toward exact goals.
 
 1. Run `/loop-setup` before the loop starts. The lead interviews the user until each goal has a done-check that can fail. The result is one loop node on the board, `loop-<slug>`.
 2. For each goal, write its done-check first and make sure that it fails. Then write the code.
-3. The loop may commit on its own branch in its own worktree, push that branch, open a draft pull request, and install builds on the test device with device automation. It never merges and never pushes to the main branch.
+3. The loop may commit on its own branch in its own worktree, push that branch, open a draft pull request, and install builds on the test device with device automation. It merges into the main branch only with the go from `/loop-setup` (see Git). It never pushes to the main branch directly.
 4. Obey the safety points of the loop node. If a step would break a safety point, find a way that does not break it. If there is no such way, park the step and continue with other work of the loop.
 5. Park each new design question in `NEXT.md` under "Decisions for the user", with a recommendation. Continue with work that does not depend on it. When only parked questions are left, use the recommended answer, record the decision in the loop node, and continue. The user can reverse it.
 6. Stop when one of these is true: all goals pass their done-checks; the budget of the loop node is reached; the loop is stuck (the same check fails after two fixes, or one full cycle moves no check). Then write the report. The setup chat, which stays open, sends the push notification.
@@ -75,14 +77,16 @@ When the work becomes risky, recommend a different mode in one line, and give th
 - Do not interpret the request. If the request does not state a design choice, ask with `AskUserQuestion` before you continue. A design choice changes behavior, appearance, wording or scope.
 - In Loop, park a question instead of waiting (see Loop).
 - Ask the same way before a deviation from the agreed work. Ask also about a surprise that changes the scope or contradicts a ruling of the user.
-- Ask before you spend money, use external accounts or credentials, delete or overwrite data, deploy or release, or touch legal or privacy matters.
+- Ask before you spend money, use external accounts or credentials, deploy or release, or touch legal or privacy matters.
+- Ask each time before you delete or overwrite data that git does not hold. A deletion that git can bring back is part of the approved work.
 
 # Git
 
-- Do not commit or push unless the user asks. Exceptions: a Loop run commits and pushes its own branch (see Loop). When the user asks for a merge, commit the work of the branch and the merge, so that the cleanup below is safe.
-- Exception: commit and push the board branches without a question. These branches hold agent communication and agent knowledge: the mailbox branches, the agents branch with the pings, and `NEXT.md` and `memory/` on the board branch.
-- Do not push to the main branch directly.
-- Clean up a branch and all its worktrees when its work is in the main branch: right after a merge, and when a task that changes files starts. At the start of a task, examine all branches and worktrees of the project, and clean up each one whose work is in main and whose agent is not active (no ping, no live session). Do not ask the user first, also when someone else did the merge. This start-of-task cleanup removes only the local branch and its worktrees, never the remote branch. Tell the user in one line what you removed. Work is in main when the commits of the branch are in main, or, for a worktree with uncommitted changes, when each changed file is identical to the file in main. If one file differs, keep the worktree and name the file in the report. Do this only when no work stays on that branch. If the user told you to do the merge, this rule is the approval of the user for these deletions. If you did the merge with no instruction from the user for that merge, ask the user before you delete. The start-of-task cleanup above needs no question. Do these steps in this sequence:
+- On your own branch, these steps need no question: commit, push, open a pull request, and merge the main branch into your branch. Your own branch is never the main branch.
+- A merge into the main branch needs a deliberate go from the user for that merge. Merge into the main branch only when the feature is complete. `/loop-setup` can give this go one time for the full Loop. Without it, a Loop stops at its pull request, ready for the review of the user. When the user gives the go for a merge, commit the work of the branch and the merge, so that the cleanup below is safe.
+- Commit and push the board branches without a question. These branches hold agent communication and agent knowledge: the mailbox branches, the agents branch with the pings, and `NEXT.md` and `memory/` on the board branch.
+- Never push to the main branch directly.
+- Clean up a branch and all its worktrees when its work is in the main branch: right after a merge, and when a task that changes files starts. At the start of a task, examine all branches and worktrees of the project, and clean up each one whose work is in main and whose agent is not active (no ping, no live session). Do not ask the user first, also when someone else did the merge. This start-of-task cleanup removes only the local branch and its worktrees, never the remote branch. Tell the user in one line what you removed. Work is in main when the commits of the branch are in main, or, for a worktree with uncommitted changes, when each changed file is identical to the file in main. If one file differs, keep the worktree and name the file in the report. Do this only when no work stays on that branch. The go of the user for a merge into the main branch is also the approval for these deletions. The start-of-task cleanup above needs no question. Do these steps in this sequence:
   1. Make sure that the main branch contains the branch: its pull request shows "merged", or `git branch -r --merged origin/main` shows `origin/<branch>`.
   2. Make sure that each worktree of the branch has no uncommitted or untracked files: `git -C <path> status --porcelain` shows nothing. For a worktree whose changes were copied to main without commits, each changed file must be identical to the file in main instead.
   3. Make sure that each local commit is on the remote: `git log origin/<branch>..<branch>` shows nothing.
@@ -90,6 +94,7 @@ When the work becomes risky, recommend a different mode in one line, and give th
   5. Remove each worktree with `git worktree remove <path>`. Do not use `--force`.
   6. Delete the local branch with `git branch -d <branch>`. After a squash merge, `-d` refuses. Then use `-D`, but only after steps 1 to 3 pass.
   7. If the remote branch is still there, delete it with `git push origin --delete <branch>`.
+- An agent worktree branch merges into the working branch of the lead, not into the main branch. Clean it up right after that merge with the steps above, with these changes. In step 1, the working branch of the lead takes the place of the main branch: `git branch --merged <lead branch>` shows the agent branch. Skip steps 3 and 7 when the agent branch has no remote branch. This cleanup needs no question.
 - Do not delete the main branch, a board branch, or the branch of another agent. A branch belongs to another agent while that agent is active: it has a ping or a live session.
 - Ask the user each time before you clean up the folder from which a computer runs the desktop app, or the branch of that folder.
 - If a step fails, stop. Delete nothing more and tell the user.
@@ -115,7 +120,7 @@ When the work becomes risky, recommend a different mode in one line, and give th
 - A small model gets only exact tasks: the files, the change, and what done looks like. If a decision comes up, the small model stops and asks the lead.
 - An agent that does its task itself reports when it finishes. Do not examine it. Supervise agents through agent communication.
 - For a large task list, the lead can be an orchestrator: it gives parallel pieces to worker sessions, checks each result against its done-check, and sends incomplete work back.
-- When you wait idle for a build, a test run, an install, an upload or another computer, examine its progress after each fifth of the expected total time. For an expected time of 25 minutes, examine it every 5 minutes. If nothing moved, find the cause.
+- When you wait idle for a build, a test run, an install, an upload or another computer, examine its progress after each fifth of the expected total time. For an expected time of 25 minutes, examine it every 5 minutes. If nothing moved, find the cause. Use a background watch for this check. A background watch is a shell loop in the background that ends when the work moves or when the time is up. It costs no model tokens. Use a helper agent as a timer only where no background shell exists.
 
 # Planning and records
 

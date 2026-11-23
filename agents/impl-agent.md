@@ -69,7 +69,7 @@ When rejecting: explain WHY with specific technical reasoning and suggest a corr
 
 ## Commits
 
-Do not commit unless the directive says so.
+In your own worktree, commit your work on its branch without a question. In the checkout of the lead, commit only when the directive says so. Never merge into the main branch.
 
 ## Checkpoints
 

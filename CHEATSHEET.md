@@ -6,8 +6,8 @@ For work that is large enough for a Loop (a feature, a long series of fixes), Cl
 
 | Mode | When | How Claude works |
 |------|------|------------------|
-| **Live** | You are at the computer | Fast work. Claude runs the build and the tests of the changed code and the shared behavior, installs on the device, and gives you the device checklist. Test first only when you ask, or for shared behavior or stored data. |
-| **Loop** | You are away | `/loop-setup` first. Then a self-running loop toward exact goals. Each goal has a done-check that Claude writes first and sees fail. The loop works on its own branch, can commit, push, open a draft PR and install on the device. It never merges. |
+| **Live** | You are at the computer | Fast work. Claude runs the build and the tests of the changed code and the shared behavior, asks before it installs on the device, and gives you the device checklist. Test first only when you ask, or for shared behavior or stored data. |
+| **Loop** | You are away | `/loop-setup` first. Then a self-running loop toward exact goals. Each goal has a done-check that Claude writes first and sees fail. The loop works on its own branch, can commit, push, open a draft PR and install on the device. It merges into main only when all goals pass and you said yes to that in `/loop-setup`. After the merge, the setup chat cleans up the branch and the worktree. |
 
 A Loop stops when all goals pass, the budget is reached, or it is stuck. Then you get a report. You also get a push notification on your phone if the setup chat stays open and Remote Control is on for it. Otherwise the stop is in `NEXT.md` and the mailbox `group-loops`.
 
@@ -24,7 +24,7 @@ When the work becomes risky, Claude recommends a different mode. The mode change
 | `/review [files]` | Compares the recent changes with the goals, the done-criteria and the safety points of the plan node |
 | `/cleanup [files]` | Updates the docs, the type hints and the comments, and removes dead code |
 | `/handoff [name]` | Writes a short handoff to `handoffs/` on the board. `/handoff list` shows all handoffs. |
-| `/loop-setup [task]` | Interviews you before a Loop: goals with done-checks, off-limits areas, safety points, the engine (local `/loop`, cloud sessions or a workflow), budget and stop conditions, parked questions, hidden context. Writes the loop node `loop-<slug>`. |
+| `/loop-setup [task]` | Interviews you before a Loop: goals with done-checks, off-limits areas, safety points, the engine (local `/loop`, cloud sessions or a workflow), budget and stop conditions, the merge into main, parked questions, hidden context. Writes the loop node `loop-<slug>`. |
 | `/marcdown-setup [folder]` | Installs or updates Marcdown. Shows each change and asks you about it before it installs. It also adds the verify hook. |
 
 ## Typical Workflows
@@ -78,7 +78,7 @@ Each project keeps the shared agent state on branches of its own remote. Run `~/
 |-------|-------|
 | The chat | The checkpoints and the approved deviations |
 | `NEXT.md` | The to-do list, the lane status and the decisions for you |
-| `memory/loop-<slug>.md` | The setup of a Loop run: goals and done-checks, off-limits areas, safety points, engine, budget, parked-question rule, verify command |
+| `memory/loop-<slug>.md` | The setup of a Loop run: goals and done-checks, off-limits areas, safety points, engine, budget, merge answer, parked-question rule, verify command |
 | `.claude/loop.json` (in the loop worktree, not in git) | Switches on the verify hook for the running Loop |
 | `memory/plan-<slug>.md` | The approved plan until the work is done: the requirements, the goals, how to know that each goal is reached, and the safe way to each goal (risks, what must not break, how to go back) |
 | `memory/` | The shared project memory and the debug notes. `memory/computers/{name}/` holds notes for one computer. |
@@ -90,17 +90,18 @@ Each project keeps the shared agent state on branches of its own remote. Run `~/
 
 1. **Session worktrees.** Before `/new-feature`, `/new-project` or `/debug` starts, Claude looks for another session on the same repository. If one is active, Claude moves into a worktree. If not, Claude works in the main checkout. Say "no worktree" or "use a worktree" to override this.
 2. **Agent worktrees.** Agents that change source code in parallel run in their own worktrees.
-3. **Merge.** After parallel worktree agents finish, `worktree-merger` merges their branches. When two changes contradict each other, it stops and the decision comes to you.
+3. **Merge.** After parallel worktree agents finish, `worktree-merger` merges their branches into the branch of the lead. When two changes contradict each other, it stops and the decision comes to you. After the merge, Claude removes the agent branches and their worktrees without a question.
 
 ## Rules You Should Know
 
 - **You choose the mode: Live or Loop.** Claude asks before the first change to code or files.
 - **"Do X" is your approval.** Claude does not ask again. "What does X need?" gets a numbered list of steps.
 - **You make the design choices.** If a design choice is not clearly stated, Claude asks. A design choice changes behavior, appearance, wording or scope. Surprises and deviations also come to you.
-- **Your words win.** Then the global rules, then the project files. Claude shows each conflict to you.
+- **Your words win.** Then the project files, then the global rules. Claude shows each conflict to you. When a project file and the global rules conflict, Claude asks one time and records your ruling in the project file as a dated line.
 - **Evidence before "done".** Claude marks nothing complete without a check that can fail.
 - **Root cause before fix.** After two failed fixes, Claude reproduces the fault in a check first.
-- **No commits unless you ask.** Exceptions: Claude commits and pushes the board branches, and a Loop run commits and pushes its own branch. Claude never uses git to discard changes.
+- **Own branch: no question.** On its own branch, Claude commits, pushes, opens a pull request and merges main into the branch without a question. It also commits and pushes the board branches. A merge into main needs your go for that merge, and happens only when the feature is complete. Your go also approves the cleanup of the branch and its worktrees after the merge. Claude never pushes to main directly and never uses git to discard changes.
+- **Deletions.** Claude asks each time before it deletes or overwrites data that git does not hold. A deletion that git can bring back is part of the approved work.
 - **Reviews.** Claude examines its own diff. The review depth follows the risk: docs and wording get the self-review only. Shared behavior, stored data, money, security and legal matters get one fresh independent review. Claude proposes the level, and you decide. Any other independent review runs only when you ask. When you say that a branch is complete, Claude offers one final independent review on the most capable model available, at high or xhigh effort.
 - **Tests.** The tests of the changed code and the shared behavior. In a Loop, the verify hook blocks the end of the run while a done-check fails. The full suite and mutation tests run only when you ask.
 - **Writing.** Text outside the chat is in strict Simplified Technical English. The `ste-lint.py` lint runs only for user-facing STE text when it is truly necessary.

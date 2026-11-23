@@ -8,7 +8,7 @@ For work that is large enough for a Loop, the lead asks one question before the 
 
 | Mode | Development | Checks after development | Device checklist |
 |------|-------------|--------------------------|------------------|
-| Live (user present) | Agents can develop. Test first only on request, or for shared behavior or stored data | Build and the tests of the changed code and the shared behavior, then install | The user |
+| Live (user present) | Agents can develop. Test first only on request, or for shared behavior or stored data | Build and the tests of the changed code and the shared behavior, then install after the user says yes | The user |
 | Loop (user away) | `/loop-setup` first. Test first for each goal, team scaled to the risk | The done-checks of the loop node, enforced by the verify hook | The agent, with device automation. Items it cannot check go to the report |
 
 The full suite and mutation tests run only when the user asks.
@@ -115,7 +115,7 @@ After worktree agents complete, deploy the `worktree-merger` agent to integrate 
 3. Spawn `worktree-merger` with the ordered branch list
 4. If the merger escalates conflicts, resolve with user input before continuing
 5. After merge completes cleanly, optionally run `test-validator` against the merged result
-6. Then clean up the merged branches and their worktrees with the steps in the Git section of `~/.claude/CLAUDE.md`
+6. Then clean up the merged agent branches and their worktrees with the steps for agent worktree branches in the Git section of `~/.claude/CLAUDE.md`
 
 ## Agent Selection
 

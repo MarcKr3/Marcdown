@@ -2,7 +2,7 @@ Install or update Marcdown with a review of each change: $ARGUMENTS
 
 This command is the main way to install or update Marcdown. It shows the changes first. It installs nothing until the user approves.
 
-**Limits:** Do not touch credentials, `projects/`, `agent-memory/` or the board memory. Do not commit or push. In the settings files, change only the Marcdown keys below, and never print or quote the other keys.
+**Limits:** Do not touch credentials, `projects/`, `agent-memory/` or the board memory. Do not commit or push, because the install changes the setup folder of the user and not a work branch. In the settings files, change only the Marcdown keys below, and never print or quote the other keys.
 
 **Marcdown default (apply it with no question, unless the user said otherwise):**
 - In `~/.claude/settings.json`: the Stop hook `~/.claude/bin/verify-hook` under `hooks.Stop`. Add it once. It does nothing outside a Loop.
