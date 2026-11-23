@@ -24,7 +24,7 @@ When the work becomes risky, Claude recommends a different mode. The mode change
 | `/review [files]` | Compares the recent changes with the goals, the done-criteria and the safety points of the plan node |
 | `/cleanup [files]` | Updates the docs, the type hints and the comments, and removes dead code |
 | `/handoff [name]` | Writes a short handoff to `handoffs/` on the board. `/handoff list` shows all handoffs. |
-| `/loop-setup [task]` | Interviews you before a Loop: goals with done-checks, off-limits areas, safety points, the engine (local `/loop`, cloud sessions or a workflow), budget and stop conditions, the merge into main, parked questions, hidden context. Writes the loop node `loop-<slug>`. |
+| `/loop-setup [task]` | Interviews you before a Loop: goals with done-checks, off-limits areas, safety points, the engine (local `/loop`, cloud sessions or a workflow), computer use to build and run the app, budget and stop conditions, the merge into main, parked questions, hidden context. Writes the loop node `loop-<slug>`. |
 | `/marcdown-setup [folder]` | Installs or updates Marcdown. Shows each change and asks you about it before it installs. It also adds the verify hook. |
 
 ## Typical Workflows
@@ -78,7 +78,7 @@ Each project keeps the shared agent state on branches of its own remote. Run `~/
 |-------|-------|
 | The chat | The checkpoints and the approved deviations |
 | `NEXT.md` | The to-do list, the lane status and the decisions for you |
-| `memory/loop-<slug>.md` | The setup of a Loop run: goals and done-checks, off-limits areas, safety points, engine, budget, merge answer, parked-question rule, verify command |
+| `memory/loop-<slug>.md` | The setup of a Loop run: goals and done-checks, off-limits areas, safety points, engine, computer-use answer, budget, merge answer, parked-question rule, verify command |
 | `.claude/loop.json` (in the loop worktree, not in git) | Switches on the verify hook for the running Loop |
 | `memory/plan-<slug>.md` | The approved plan until the work is done: the requirements, the goals, how to know that each goal is reached, and the safe way to each goal (risks, what must not break, how to go back) |
 | `memory/` | The shared project memory and the debug notes. `memory/computers/{name}/` holds notes for one computer. |
