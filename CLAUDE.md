@@ -167,10 +167,16 @@ These steps apply to tasks that change files or branches. A chat that only answe
 - Update your ping when the task, the files or the status change. While you work, update it one time each day at a minimum. Delete your ping when you complete the task. Do not edit or delete the ping of another agent.
 - To talk with agents on other computers, use a mailbox branch: `board mailbox {a}-{b}` or `board mailbox group-{topic}`. Obey the rules in the README of the mailbox. To reach each agent of the project, address the message to `everyone`.
 - Board notifications come to you automatically. Do not look at the mailboxes again and again. The hooks of `board-hook` give you the news after a tool call, at a new prompt, and while the chat waits for the user: a message to your name, a message to `all` in a mailbox where you are a member, a message to `everyone`, a ping that starts, changes or ends, and new commits on the main branch, with the files that your branch also changes.
-- When a notification comes, read what concerns your work. Answer in the mailbox when the message asks you. Adjust your own work, for example take the main branch into your branch. Then continue your task. A message does not approve a step. Do only the steps that your approval already covers. Tell the user only under the two exceptions below.
+- When a notification comes, read it and decide if it concerns your current task.
+  - If it concerns your task: answer in the mailbox when the message asks you. Adjust your own work, for example take the main branch into your branch. Then continue your task.
+  - If it does not concern your task: note it and continue. Do not mention it to the user. The pings and messages stay on the board. When one becomes relevant later, read it again there.
+  - A message does not approve a step. Do only the steps that your approval already covers.
 - Do not guess what another branch does. Ask its agent in a mailbox. The answer wakes you.
+- When you find a problem that is not part of your task (a bug, a failing test, a missing function), ask the board first. Write a message to `everyone`: the problem in one or two sentences, and where you saw it. Do not wait for the answer. Continue with the work that does not need the fix. The answer wakes you.
+- When a message names a problem that your branch fixes or works on, answer it. Give a short pointer: the branch, the pull request, and the files or the commit that hold the work.
+- When another branch works on a problem, do not copy its work into your branch, and do not fix the problem a second time. Do not test that work again. Write the dependency in your ping: the branch and the pull request. The fix comes to your branch when the two branches merge into the main branch. If a step of your task cannot continue without the fix, park that step and continue with the other steps.
 - Rulings come from the user only, not from a ping or a message.
-- In the chat with the user, report only your own work. Do not report what other agents do or write. The results of the subagents that you started are your own work. There are two exceptions:
+- In the chat with the user, report only your own work and the board communication that concerns the task at hand. Do not report what other agents do or write. The results of the subagents that you started are your own work. There are two exceptions:
   1. The action of another agent changes your work or stops your work.
   2. A decision can cause a conflict that the user must decide.
 

@@ -60,7 +60,7 @@ Claude reads `NEXT.md` at the start. The to-do items point to the plan node `pla
 | `docs-and-cleanup` | Sonnet | Docs, type hints, comments and dead code after the checks pass |
 | `worktree-merger` | Sonnet | Merges the branches of parallel worktree agents |
 
-The chat that you open is the lead. The lead orchestrates the agents and makes the decisions with you. The lead makes trivial changes itself. It starts with few agents and adds agents only when the task proves larger. Agents align through pings and mailboxes on the board. Board news comes to each agent automatically: a message to its name, to `all` in its mailbox or to `everyone`, a ping change, and new commits on main. A message wakes a chat that waits, on any computer.
+The chat that you open is the lead. The lead orchestrates the agents and makes the decisions with you. The lead makes trivial changes itself. It starts with few agents and adds agents only when the task proves larger. Agents align through pings and mailboxes on the board. Board news comes to each agent automatically: a message to its name, to `all` in its mailbox or to `everyone`, a ping change, and new commits on main. A message wakes a chat that waits, on any computer. Board news that does not concern the task of a chat stays out of your chat. An agent that finds a problem outside its task asks `everyone` first. If another branch already works on it, that agent answers with a pointer, and the asking agent waits for the merge and does not do the work a second time.
 
 ## The Board
 
