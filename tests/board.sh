@@ -154,7 +154,7 @@ ok "message to all members arrives" 'echo "$out" | grep -q "For the members."'
 ok "own message stays out" '! echo "$out" | grep -q "Not to myself."'
 echo "- Status: blocked on review" > "$(bA path agents)/pings/a-agent.md"
 bA sync; bB event agents
-ok "ping change arrives" 'bB inbox --session $SB | grep -q "Ping changed: a-agent. Status: blocked on review"'
+ok "a ping change gives no notice" '[ -z "$(bB inbox --session $SB)" ]'
 
 # the main branch moved, and it touches a file that the branch of the session changes
 g -C "$T/B/proj" worktree add -q "$T/B/wt-feat" -b feat 2>/dev/null
@@ -168,16 +168,19 @@ out="$(bB inbox --session $SB2)"
 ok "main moved arrives" 'echo "$out" | grep -q "main moved: 1 new commit" && echo "$out" | grep -q "main change"'
 ok "overlap is named" 'echo "$out" | grep -A3 "change files that your branch" | grep -q "app.txt"'
 
-# a waiting session sleeps, and a board event wakes it with the news
-bB inbox --session $SB >/dev/null   # read the news of the main branch first
+# a waiting session sleeps through a main move and a ping change, and a message wakes it
 bB wait --session $SB --cwd "$T/B/proj" 2> "$T/wait.err" & WPID=$!
+echo "- Status: new agent" > "$(bA path agents)/pings/c-agent.md"
+bA sync; bB event agents
 sleep 2
-ok "the waiter sleeps while nothing is new" 'kill -0 $WPID 2>/dev/null'
+ok "a main move and a ping change do not wake the waiter" 'kill -0 $WPID 2>/dev/null'
 printf 'To: b-agent · Re: -\nWake up.\n' > "$MB_A/messages/2026-01-03T0005Z-a-agent.md"
 bA sync; bB event mailbox/a-b
 for i in 1 2 3 4 5 6 7 8 9 10; do kill -0 $WPID 2>/dev/null || break; sleep 1; done
 wait $WPID; rc=$?
 ok "the waiter wakes with exit 2" '[ "$rc" = 2 ] && grep -q "Wake up." "$T/wait.err"'
+ok "the wake holds only the message" '! grep -q "main moved" "$T/wait.err"'
+ok "the main move comes at the next look" 'bB inbox --session $SB | grep -q "main moved: 1 new commit"'
 bB wait --session $SB --cwd "$T/B/proj" 2>/dev/null & W1=$!; sleep 3
 bB wait --session $SB --cwd "$T/B/proj" 2>/dev/null & W2=$!; sleep 2
 ok "a new waiter replaces the old one" '! kill -0 $W1 2>/dev/null && kill -0 $W2 2>/dev/null'

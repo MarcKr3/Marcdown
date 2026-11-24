@@ -69,7 +69,7 @@ case "$event" in
       give SessionStart "$(b inbox --session "$sid" 2>/dev/null)"
     else
       b inbox --session "$sid" --peek >/dev/null 2>&1   # registers the session; all that exists counts as seen
-      give SessionStart "Board notifications are on in this project. Board messages to you, messages to all, ping changes and new commits on the main branch come to you automatically, also while you wait. After you write your ping, run: ~/.claude/bin/board whoami <your ping name>"
+      give SessionStart "Board notifications are on in this project. A message to your name, to all in a mailbox where you are a member, or to everyone comes to you automatically and wakes you while you wait. New commits on the main branch come after your next tool call. Ping changes do not come: read the pings when you need them. After you write your ping, run: ~/.claude/bin/board whoami <your ping name>"
     fi ;;
   UserPromptSubmit)
     give UserPromptSubmit "$(b inbox --session "$sid" 2>/dev/null)" ;;
