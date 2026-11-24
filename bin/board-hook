@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# board-hook: the Claude Code hooks for board notifications (Marcdown). One script for each hook event:
+#   SessionStart, UserPromptSubmit, PostToolUse  give the news on the board to the session as context.
+#   Stop (async, asyncRewake)                    waits for news without polling and wakes the idle session.
+# PostToolUse also sends a board write out at once, and sends an event after a merge into the main branch.
+# The script does nothing in a project without board notifications (`board setup` turns them on).
+# It runs after each tool call, so the usual path uses no Python and at most one git call.
+set -u
+export PATH="/usr/bin:/bin:/usr/sbin:/sbin:/mingw64/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"
+BOARD="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/board"
+input="$(cat)"
+
+# The value of a top-level string field. The fields that the hook reads have no escaped quotes.
+# It uses the regular expressions of bash, so it starts no other program.
+field() {
+  local re="\"$1\"[[:space:]]*:[[:space:]]*\"([^\"]*)\""
+  [[ $input =~ $re ]] && printf '%s' "${BASH_REMATCH[1]}"
+}
+
+# Fast exit: the folder of the session must be in a project whose board has notifications.
+cwd="$(field cwd)"
+[ -n "$cwd" ] && [ -d "$cwd" ] || exit 0
+common="$(git -C "$cwd" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || exit 0
+nd="$common/board/notify"
+[ -d "$nd" ] || exit 0
+
+event="$(field hook_event_name)"; sid="$(field session_id)"
+[ -n "$sid" ] || exit 0
+# A subagent shares the session id. The news goes to the main agent, so a subagent gets none.
+[ -z "$(field agent_id)" ] || exit 0
+
+b() { bash "$BOARD" --project "$cwd" "$@"; }
+
+# Print the news as context for the model, in the JSON form of the hook.
+give() { # event text
+  [ -n "$2" ] || return 0
+  python3 -I -c 'import json, sys; print(json.dumps({"hookSpecificOutput": {"hookEventName": sys.argv[1], "additionalContext": sys.argv[2]}}))' "$1" "$2"
+}
+
+case "$event" in
+  SessionStart)
+    if [ -f "$nd/sessions/$sid" ]; then
+      give SessionStart "$(b inbox --session "$sid" 2>/dev/null)"
+    else
+      b inbox --session "$sid" --peek >/dev/null 2>&1   # registers the session; all that exists counts as seen
+      give SessionStart "Board notifications are on in this project. Board messages to you, messages to all, ping changes and new commits on the main branch come to you automatically, also while you wait. After you write your ping, run: ~/.claude/bin/board whoami <your ping name>"
+    fi ;;
+  UserPromptSubmit)
+    give UserPromptSubmit "$(b inbox --session "$sid" 2>/dev/null)" ;;
+  PostToolUse)
+    tool="$(field tool_name)"
+    case "$tool" in
+      Write|Edit|MultiEdit|NotebookEdit|Bash)
+        # A board write: a path in a board folder, or a shell command that names one.
+        hit=0
+        while IFS= read -r d; do [ -n "$d" ] && case "$input" in *"$d"*) hit=1; break ;; esac; done < "$nd/dirs" 2>/dev/null
+        case "$input" in *pings/*|*messages/*|*NEXT.md*|*"board path"*) hit=1 ;; esac
+        case "$input" in *"gh pr merge"*|*"git push"*) hit=1 ;; esac
+        [ "$hit" = 1 ] && b touched --session "$sid" --path "$(field file_path)" --command "$input" >/dev/null 2>&1 ;;
+    esac
+    # Look at the board only when something changed since this session last looked. That costs one file read.
+    stamp="$(cat "$nd/stamp" 2>/dev/null)"
+    if [ -n "$stamp" ] && [ "$stamp" != "$(cat "$nd/sessions/$sid.stamp" 2>/dev/null)" ]; then
+      printf '%s\n' "$stamp" > "$nd/sessions/$sid.stamp"
+      give PostToolUse "$(b inbox --session "$sid" 2>/dev/null)"
+    fi ;;
+  Stop)
+    # Runs as an async hook with asyncRewake: exit 2 with the news on stderr wakes the session.
+    exec bash "$BOARD" --project "$cwd" wait --session "$sid" --cwd "$cwd" ;;
+esac
+exit 0

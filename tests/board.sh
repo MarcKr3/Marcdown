@@ -6,6 +6,11 @@ unset CLAUDE_CONFIG_DIR
 BOARD="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)/bin/board"
 T="$(mktemp -d)"; [ -n "${KEEP:-}" ] || trap 'rm -rf "$T"' EXIT; echo "tmp: $T"
 T="$(cd "$T" && pwd -P)"
+# A local stand-in for the push relay, so that the test never sends anything to the internet.
+python3 "$(dirname "${BASH_SOURCE[0]}")/relay-stub.py" "$T/relay.port" "$T/relay.log" & STUB=$!
+trap 'kill $STUB 2>/dev/null; pkill -f "$T/" 2>/dev/null; [ -n "${KEEP:-}" ] || rm -rf "$T"' EXIT
+for i in 1 2 3 4 5 6 7 8 9 10; do [ -s "$T/relay.port" ] && break; sleep 0.5; done
+export BOARD_NOTIFY_SERVER="http://127.0.0.1:$(cat "$T/relay.port")"
 pass=0; fail=0
 ok() { if eval "$2"; then pass=$((pass + 1)); else fail=$((fail + 1)); echo "FAIL: $1"; fi; }
 g() { git -c user.name=t -c user.email=t@t -c init.defaultBranch=main "$@"; }
@@ -115,6 +120,101 @@ ok "dropped where not checked out" '[ "$(g -C "$T/remote.git" show mailbox/group
 bB sync
 ok "B gets the shorter list" '[ "$(grep "^Members:" "$MB_B/README.md")" = "Members: " ]'
 ok "no leftover edit folder" '! git -C "$T/A/proj" worktree list | grep -q mailbox-edit'
+
+# ---- notifications: messages, pings and the main branch reach the agents that they concern ----
+ok "topic on the agents branch" 'g -C "$T/remote.git" show agents:NOTIFY.md | grep -Eq "^Topic: board-[0-9a-f]{32}$"'
+ok "B uses the same topic" '[ "$(grep "^Topic:" "$(bB path agents)/NOTIFY.md")" = "$(g -C "$T/remote.git" show agents:NOTIFY.md | grep "^Topic:")" ]'
+SB=sessionB-0001
+out="$(bB inbox --session $SB)"
+ok "first look marks all as seen" '[ -z "$out" ]'
+bB whoami b-agent --session $SB >/dev/null
+echo "- Status: works on feature" > "$(bB path agents)/pings/b-agent.md"
+bB sync; bA sync
+ok "whoami names the session" 'grep -qx "name=b-agent" "$T/B/proj/.git/board/notify/sessions/$SB"'
+MB_A="$(bA path mailbox a-b)"
+: > "$T/relay.log"
+printf 'To: b-agent · Re: -\nPlease take main in.\n' > "$MB_A/messages/2026-01-03T0000Z-a-agent.md"
+printf 'To: c-agent · Re: -\nNot for b.\n' > "$MB_A/messages/2026-01-03T0001Z-a-agent.md"
+printf 'To: everyone · Re: -\nFreeze at noon.\n' > "$MB_A/messages/2026-01-03T0002Z-a-agent.md"
+bA sync
+ok "a push sends an event" 'grep -q " mailbox/a-b$" "$T/relay.log"'
+ok "the event holds only the branch" '! grep -q "Please" "$T/relay.log"'
+bB event mailbox/a-b
+out="$(bB inbox --session $SB)"
+ok "direct message arrives" 'echo "$out" | grep -q "Message to you from a-agent" && echo "$out" | grep -q "Please take main in."'
+ok "message to another agent stays out" '! echo "$out" | grep -q "Not for b."'
+ok "message to everyone arrives" 'echo "$out" | grep -q "Freeze at noon."'
+ok "a message comes one time" '[ -z "$(bB inbox --session $SB)" ]'
+( cd "$MB_A" && sed -i.bak 's/^Members:.*/Members: a-agent, b-agent/' README.md && rm -f README.md.bak )
+printf 'To: all · Re: -\nFor the members.\n' > "$MB_A/messages/2026-01-03T0003Z-a-agent.md"
+printf 'To: b-agent · Re: -\nNot to myself.\n' > "$(bB path mailbox a-b)/messages/2026-01-03T0004Z-b-agent.md"
+bB sync; bA sync; bB event mailbox/a-b
+out="$(bB inbox --session $SB)"
+ok "message to all members arrives" 'echo "$out" | grep -q "For the members."'
+ok "own message stays out" '! echo "$out" | grep -q "Not to myself."'
+echo "- Status: blocked on review" > "$(bA path agents)/pings/a-agent.md"
+bA sync; bB event agents
+ok "ping change arrives" 'bB inbox --session $SB | grep -q "Ping changed: a-agent. Status: blocked on review"'
+
+# the main branch moved, and it touches a file that the branch of the session changes
+g -C "$T/B/proj" worktree add -q "$T/B/wt-feat" -b feat 2>/dev/null
+( cd "$T/B/wt-feat" && echo feat > app.txt && g commit -q -am feat )
+SB2=sessionB-0002
+bB inbox --session $SB2 >/dev/null
+sed -i.bak "s#^cwd=.*#cwd=$T/B/wt-feat#" "$T/B/proj/.git/board/notify/sessions/$SB2" && rm -f "$T/B/proj/.git/board/notify/sessions/$SB2.bak"
+( cd "$T/A/proj" && g pull -q origin main 2>/dev/null; echo main2 > app.txt && g commit -q -am "main change" && g push -q origin HEAD:main )
+bB event main
+out="$(bB inbox --session $SB2)"
+ok "main moved arrives" 'echo "$out" | grep -q "main moved: 1 new commit" && echo "$out" | grep -q "main change"'
+ok "overlap is named" 'echo "$out" | grep -A3 "change files that your branch" | grep -q "app.txt"'
+
+# a waiting session sleeps, and a board event wakes it with the news
+bB inbox --session $SB >/dev/null   # read the news of the main branch first
+bB wait --session $SB --cwd "$T/B/proj" 2> "$T/wait.err" & WPID=$!
+sleep 2
+ok "the waiter sleeps while nothing is new" 'kill -0 $WPID 2>/dev/null'
+printf 'To: b-agent · Re: -\nWake up.\n' > "$MB_A/messages/2026-01-03T0005Z-a-agent.md"
+bA sync; bB event mailbox/a-b
+for i in 1 2 3 4 5 6 7 8 9 10; do kill -0 $WPID 2>/dev/null || break; sleep 1; done
+wait $WPID; rc=$?
+ok "the waiter wakes with exit 2" '[ "$rc" = 2 ] && grep -q "Wake up." "$T/wait.err"'
+bB wait --session $SB --cwd "$T/B/proj" 2>/dev/null & W1=$!; sleep 3
+bB wait --session $SB --cwd "$T/B/proj" 2>/dev/null & W2=$!; sleep 2
+ok "a new waiter replaces the old one" '! kill -0 $W1 2>/dev/null && kill -0 $W2 2>/dev/null'
+pkill -f "wait --session $SB " 2>/dev/null; wait $W2 2>/dev/null
+
+# the listener gets the event of another computer by itself
+SB3=sessionB-0003
+bB inbox --session $SB3 >/dev/null; bB whoami b-agent --session $SB3 >/dev/null
+bB listen >/dev/null 2>&1 & LPID=$!
+sleep 3
+printf 'To: b-agent · Re: -\nBy the relay.\n' > "$MB_A/messages/2026-01-03T0006Z-a-agent.md"
+bA sync
+got=""
+for i in $(seq 1 20); do got="$(bB inbox --session $SB3 --peek)"; echo "$got" | grep -q "By the relay." && break; sleep 1; done
+ok "listener brings the message from A" 'echo "$got" | grep -q "By the relay."'
+pkill -f "$T/B/proj listen" 2>/dev/null; pkill -f "$BOARD_NOTIFY_SERVER/" 2>/dev/null; kill $LPID 2>/dev/null
+wait $LPID 2>/dev/null
+
+# the hook: a ping write names the session, and news comes as context after a tool call
+HOOK="$(dirname "$BOARD")/board-hook"
+SB4=sessionB-0004
+hook() { HOME="$HOME_B" bash "$HOOK"; }
+printf '{"hook_event_name":"SessionStart","session_id":"%s","cwd":"%s","source":"startup"}' $SB4 "$T/B/proj" | hook > "$T/hook.out"
+ok "SessionStart says notifications are on" 'grep -q "Board notifications are on" "$T/hook.out"'
+printf '{"hook_event_name":"PostToolUse","session_id":"%s","cwd":"%s","tool_name":"Write","tool_input":{"file_path":"%s/pings/b-four.md"}}' \
+  $SB4 "$T/B/proj" "$(bB path agents)" | hook >/dev/null
+ok "a ping write names the session" 'grep -qx "name=b-four" "$T/B/proj/.git/board/notify/sessions/$SB4"'
+printf 'To: b-four · Re: -\nHook news.\n' > "$MB_A/messages/2026-01-03T0007Z-a-agent.md"
+bA sync; bB event mailbox/a-b
+printf '{"hook_event_name":"PostToolUse","session_id":"%s","cwd":"%s","tool_name":"Read","tool_input":{"file_path":"/x"}}' $SB4 "$T/B/proj" | hook > "$T/hook.out"
+ok "PostToolUse gives the news as context" 'python3 -c "import json,sys; d=json.load(open(sys.argv[1])); assert \"Hook news.\" in d[\"hookSpecificOutput\"][\"additionalContext\"]" "$T/hook.out"'
+printf '{"hook_event_name":"PostToolUse","session_id":"%s","cwd":"%s","tool_name":"Read","tool_input":{"file_path":"/x"}}' $SB4 "$T/B/proj" | hook > "$T/hook.out"
+ok "no news, no output" '[ ! -s "$T/hook.out" ]'
+printf '{"hook_event_name":"PostToolUse","session_id":"%s","agent_id":"sub1","cwd":"%s","tool_name":"Read"}' $SB4 "$T/B/proj" | hook > "$T/hook.out"
+ok "a subagent gets nothing" '[ ! -s "$T/hook.out" ]'
+printf '{"hook_event_name":"PostToolUse","session_id":"%s","cwd":"%s","tool_name":"Read"}' $SB4 "$T" | hook > "$T/hook.out"; rc=$?
+ok "outside a board project the hook is silent" '[ "$rc" = 0 ] && [ ! -s "$T/hook.out" ]'
 
 # ---- a real conflict stops, keeps the local commit, never force-pushes ----
 echo "A line" > "$NEXT_A/NEXT.md"; echo "B line" > "$NEXT_B/NEXT.md"

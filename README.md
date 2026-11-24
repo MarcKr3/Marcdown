@@ -10,6 +10,7 @@ An agent team framework for Claude Code. Adds structured multi-agent orchestrati
 - **CLAUDE.md**: core rules: one start question for larger work (small requests skip it), Live (you are at the computer) or Loop (you are away, `/loop-setup` first), "Do X" is the approval, questions on design choices, parked questions in a Loop, review depth by risk, evidence before claims, root cause before fix, record only what the code cannot tell
 - **Safety and checks**: `/marcdown-setup` adds a verify hook that blocks the end of a Loop run while a done-check fails. The first time that Claude works in a project, it asks one time: apply the defaults (deny rules for acts that cannot be undone, the board, the folder as a trusted place) or customize them. The OS sandbox is an option in each Loop
 - **`bin/board`**: keeps the shared agent state of each project on branches of its own remote. This state is `NEXT.md`, a shared memory, pings and mailboxes. A sync job runs every 2 minutes on macOS, Windows and Linux.
+- **Board notifications** (`bin/board-hook`): a board message, a ping change or a merge into main comes to the agents that it concerns, also when a chat is idle and also on another computer. A board write goes out at once. The event between computers goes through the ntfy push relay and holds only the branch name. No agent polls.
 - **`ste-writing` skill**: writes docs, comments and messages in Simplified Technical English, with a linter (`ste-lint.py`)
 - **References & templates**: team framework docs and the handoff template
 
@@ -54,6 +55,8 @@ Run this command in a checkout of the project. On Windows, use `bin\board.cmd` f
 ```
 
 The command checks out the board branches beside the project. It links the Claude memory folder of each checkout and each worktree to the shared memory. Then it starts the sync job. If this computer has memory notes that the board does not have, the command lists them and stops. Run it again with `--share-notes` to share them, or with `--keep-local` to keep them on this computer only. `board status` shows the sync. To test the tool, run `bash tests/board.sh` in this repository.
+
+The setup also turns on the board notifications. The first setup of a project writes `NOTIFY.md` with a random relay topic on the agents branch. On each computer, the setup starts a listener job that keeps one open connection to the relay (`https://ntfy.sh` by default). `/marcdown-setup` adds the hooks of `bin/board-hook` to `~/.claude/settings.json`. Use `--no-notify` to set up the board without notifications.
 
 ## Update
 

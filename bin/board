@@ -11,6 +11,9 @@
 #                           where a board folder is on this computer
 #   board mailbox <name>    open or join the mailbox branch <prefix><name> on this computer
 #   board check             memory health: broken [[links]], index lines without a node
+#   board whoami <name>     tell the board which agent this Claude session is (the name of its ping)
+#   board inbox [--peek]    what is new on the board for this session: messages, pings, the main branch
+#   board listen            wait for board events from other computers (the listener job runs this)
 #   board uninstall         stop the background sync on this computer (files and links stay)
 #
 # Run each command inside a checkout of the project (any worktree), or give `--project <dir>`.
@@ -56,6 +59,7 @@ parse_project() {
 
 # Main worktree of the project (the same for every branch and every linked worktree).
 project_root() {
+  [ -n "${_ROOT:-}" ] && { echo "$_ROOT"; return 0; }
   local start="${PROJECT:-$PWD}" common
   common="$(git -C "$start" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" \
     || die "not inside a git checkout ($start)"
@@ -65,7 +69,10 @@ project_root() {
   esac
 }
 
-git_common() { git -C "$(project_root)" rev-parse --path-format=absolute --git-common-dir; }
+git_common() {
+  [ -n "${_COMMON:-}" ] && { echo "$_COMMON"; return 0; }
+  git -C "$(project_root)" rev-parse --path-format=absolute --git-common-dir
+}
 state_dir() { local d; d="$(git_common)" && [ -n "$d" ] || return 1; mkdir -p "$d/board" || return 1; echo "$d/board"; }
 
 conf() { git -C "$(project_root)" config --get "board.$1" 2>/dev/null || echo "$2"; }
@@ -322,7 +329,7 @@ notify() { # dir message
 log() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$(state_dir)/sync.log"; }
 
 sync_one() { # dir branch ; returns 1 when stuck, 2 when the push failed
-  local dir="$1" branch="$2" host tries=0
+  local dir="$1" branch="$2" host tries=0 before
   host="$(hostname 2>/dev/null | cut -d. -f1)"
   ( cd "$dir" || exit 1
     [ "$(git branch --show-current)" = "$branch" ] || { notify "$dir" "not on branch $branch"; exit 1; }
@@ -332,6 +339,7 @@ sync_one() { # dir branch ; returns 1 when stuck, 2 when the push failed
     }
     commit
     git $NET fetch -q "$REMOTE" "refs/heads/$branch:refs/remotes/$REMOTE/$branch" 2>/dev/null || log "$branch: fetch failed (offline?); will retry"
+    before="$(git rev-parse HEAD)"
     if git rev-parse -q --verify "refs/remotes/$REMOTE/$branch" >/dev/null; then
       until git rebase -q "$REMOTE/$branch" >/dev/null 2>&1; do
         if [ -d "$(git rev-parse --git-path rebase-merge)" ] || [ -d "$(git rev-parse --git-path rebase-apply)" ]; then
@@ -343,11 +351,14 @@ sync_one() { # dir branch ; returns 1 when stuck, 2 when the push failed
         sleep 2; commit
       done
     fi
+    # A rebase that moved HEAD brought edits of other agents: wake the agents on this computer.
+    [ "$(git rev-parse HEAD)" != "$before" ] && : > "$(state_dir)/remote-changed"
     [ "$branch" = "$AGENTS_BRANCH" ] && prune_pings
     if ! git rev-parse -q --verify "refs/remotes/$REMOTE/$branch" >/dev/null \
        || [ "$(git rev-list --count "$REMOTE/$branch..HEAD")" -gt 0 ]; then
       if git $NET push -q "$REMOTE" "HEAD:refs/heads/$branch" 2>>"$(state_dir)/sync.log"; then
         log "$branch: pushed $(git rev-parse --short HEAD)"
+        publish "$branch"
         git rev-parse -q --verify "refs/remotes/$REMOTE/$branch" >/dev/null || git branch -q -u "$REMOTE/$branch" 2>/dev/null
       else
         log "$branch: push failed; will retry"; exit 2
@@ -431,7 +442,7 @@ prune_mailboxes() {
 
 cmd_sync() {
   load_conf
-  local sd branch dir failed=0 stuck=0 rc next
+  local sd branch dir failed=0 stuck=0 rc next main before
   sd="$(state_dir)" && [ -d "$sd" ] || die "cannot reach the git folder of $(project_root 2>/dev/null || echo "the project")"; LOCK="$sd/sync.lock"
   if ! mkdir "$LOCK" 2>/dev/null; then
     [ -n "$(find "$LOCK" -maxdepth 0 -mmin +10 2>/dev/null)" ] || exit 0
@@ -445,6 +456,13 @@ cmd_sync() {
     [ "$rc" = 2 ] && failed=1
   done < <(board_branches | sort -u)
   [ "$stuck" = 0 ] && [ "$failed" = 0 ] && prune_mailboxes
+  # The main branch: a merge on the website sends no event, so the job finds it here.
+  main="$(conf main main)"
+  before="$(git -C "$(project_root)" rev-parse -q --verify "refs/remotes/$REMOTE/$main")"
+  git -C "$(project_root)" $NET fetch -q "$REMOTE" "+refs/heads/$main:refs/remotes/$REMOTE/$main" 2>/dev/null
+  [ "$(git -C "$(project_root)" rev-parse -q --verify "refs/remotes/$REMOTE/$main")" != "$before" ] && : > "$sd/remote-changed"
+  [ -e "$sd/remote-changed" ] && { rm -f "$sd/remote-changed"; wake_all; }
+  write_dirs
   # New worktrees get the shared memory too. Only after setup linked the main checkout.
   if next="$(worktree_of "$NEXT_BRANCH")" && is_link "$(claude_memory_dir)"; then link_worktrees "$next/memory" skip; fi
   if [ "$failed" = 1 ]; then
@@ -455,6 +473,345 @@ cmd_sync() {
   fi
   [ "$stuck" = 0 ] && [ "$failed" = 0 ] && rm -f "$sd/stuck"
   [ "$stuck" = 0 ]
+}
+
+# ---------- notifications ----------
+# A board write wakes the agents that it concerns. On this computer the wake is direct. Other computers get an
+# event through a push relay (ntfy). The event holds only a branch name. A waiting agent sleeps on a local pipe,
+# so no agent polls. The relay topic is in NOTIFY.md on the agents branch.
+
+NOTIFY_SERVER_DEFAULT="https://ntfy.sh"
+
+notify_dir() {
+  local d; d="$(state_dir)/notify" || return 1
+  [ -d "$d" ] || return 1
+  mkdir -p "$d/sessions" "$d/seen" "$d/waiters" || return 1
+  echo "$d"
+}
+
+# "server topic" from NOTIFY.md on the agents branch.
+notify_conf() {
+  local dir f server topic
+  dir="$(worktree_of "$AGENTS_BRANCH")" || return 1
+  f="$dir/NOTIFY.md"; [ -f "$f" ] || return 1
+  server="$(sed -n 's/^Server:[[:space:]]*//p' "$f" | head -1 | tr -d '\r[:space:]')"
+  topic="$(sed -n 's/^Topic:[[:space:]]*//p' "$f" | head -1 | tr -d '\r[:space:]')"
+  server="${BOARD_NOTIFY_SERVER:-${server:-$NOTIFY_SERVER_DEFAULT}}"
+  printf '%s' "$topic" | grep -Eq '^[A-Za-z0-9_-]{16,64}$' || return 1
+  case "$server" in https://*|http://127.0.0.1*|http://localhost*) ;; *) return 1 ;; esac
+  echo "${server%/} $topic"
+}
+
+# Write NOTIFY.md with a new random topic, if the agents branch has none.
+ensure_notify() { # agents-dir
+  local dir="$1" topic
+  [ -f "$dir/NOTIFY.md" ] && return 0
+  topic="board-$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+  cat > "$dir/NOTIFY.md" <<EOF
+# Board notifications
+
+Server: $NOTIFY_SERVER_DEFAULT
+Topic: $topic
+
+The board tool sends one event to this topic after each push of a board branch, and after a merge into the main branch. The event holds only the branch name. The listener on each computer gets the event, fetches the branch and wakes the agents that the change concerns.
+
+Keep the topic name in this repository only. To use your own ntfy server, change the Server line.
+EOF
+  git -C "$dir" add NOTIFY.md && git -C "$dir" commit -q -m "$AGENTS_BRANCH: notification topic (board setup)" \
+    && { git -C "$dir" $NET push -q "$REMOTE" "HEAD:refs/heads/$AGENTS_BRANCH" 2>/dev/null || say "notify: topic not pushed yet; sync will retry"; }
+}
+
+# Send the event "<branch> changed" to the other computers.
+publish() { # branch
+  local c; c="$(notify_conf)" || return 0
+  if curl -s -m 10 -o /dev/null -d "$1" "${c% *}/${c#* }" 2>/dev/null; then log "notify: sent $1"; else log "notify: send of $1 failed"; fi
+}
+
+# The board folders of this computer, one per line, for the fast check of the hook.
+write_dirs() {
+  local nd b d; nd="$(notify_dir)" || return 0
+  while IFS= read -r b; do d="$(worktree_of "$b")" && echo "$d"; done < <(board_branches | sort -u) > "$nd/dirs.tmp" \
+    && mv "$nd/dirs.tmp" "$nd/dirs"
+}
+
+# Wake each waiting agent on this computer. The agent then reads what is new for it.
+wake_all() {
+  local nd f pid
+  nd="$(notify_dir)" || return 0
+  printf '%s-%s-%s\n' "$(date +%s)" "$$" "$RANDOM" > "$nd/stamp"
+  for f in "$nd"/waiters/*.pid; do
+    [ -f "$f" ] || continue
+    pid="$(cat "$f" 2>/dev/null)"
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+      # Open read-write: the write never blocks, and the waiter keeps the pipe open, so no wake is lost.
+      [ -p "${f%.pid}.fifo" ] && ( exec 3<>"${f%.pid}.fifo"; printf 'w\n' >&3 ) 2>/dev/null
+    else
+      rm -f "$f" "${f%.pid}.fifo"
+    fi
+  done
+  return 0
+}
+
+valid_sid() { printf '%s' "$1" | grep -Eq '^[A-Za-z0-9._-]{3,80}$'; }
+valid_name() { printf '%s' "$1" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$'; }
+
+sess_get() { sed -n "s/^$2=//p" "$(notify_dir)/sessions/$1" 2>/dev/null | head -1; }
+sess_set() { # sid key value
+  local f; f="$(notify_dir)/sessions/$1"; touch "$f"
+  { grep -v "^$2=" "$f"; printf '%s=%s\n' "$2" "$3"; } > "$f.tmp" && mv "$f.tmp" "$f"
+}
+
+# Each mailbox message on this computer or on the remote: "<branch><TAB><file><TAB><source>".
+# The source is a file path, or "<ref>:messages/<file>". A local copy comes first.
+mail_items() {
+  local root line path="" branch f ref
+  root="$(project_root)"
+  {
+    while IFS= read -r line; do
+      case "$line" in
+        "worktree "*) path="${line#worktree }" ;;
+        "branch refs/heads/$MAILBOX_PREFIX"*)
+          branch="${line#branch refs/heads/}"
+          for f in "$path"/messages/*.md; do [ -f "$f" ] && printf '%s\t%s\t%s\n' "$branch" "$(basename "$f")" "$f"; done ;;
+      esac
+    done < <(git -C "$root" worktree list --porcelain)
+    while IFS= read -r ref; do
+      branch="${ref#refs/remotes/$REMOTE/}"
+      git -C "$root" ls-tree --name-only "$ref" messages/ 2>/dev/null | sed -n 's#^messages/\(.*\.md\)$#\1#p' \
+        | while IFS= read -r f; do printf '%s\t%s\t%s\n' "$branch" "$f" "$ref:messages/$f"; done
+    done < <(git -C "$root" for-each-ref --format='%(refname)' "refs/remotes/$REMOTE/$MAILBOX_PREFIX")
+  } | awk -F'\t' '!seen[$1 FS $2]++'
+}
+
+read_src() { case "$1" in /*|[A-Za-z]:*) cat "$1" 2>/dev/null ;; *) git -C "$(project_root)" show "$1" 2>/dev/null ;; esac; }
+
+members_of() { # mailbox-branch
+  local dir text
+  if dir="$(worktree_of "$1")"; then text="$(cat "$dir/README.md" 2>/dev/null)"
+  else text="$(git -C "$(project_root)" show "refs/remotes/$REMOTE/$1:README.md" 2>/dev/null)"; fi
+  printf '%s\n' "$text" | sed -n 's/^Members:[[:space:]]*//p' | head -1 | tr 'A-Z,' 'a-z ' | tr -d '`'
+}
+
+# How a message concerns <me>: "direct", "all" (to all members) or "everyone". Fails when it does not.
+mail_kind() { # first-line me members
+  local to me tok
+  me="$(printf '%s' "$2" | tr 'A-Z' 'a-z')"
+  to="$(printf '%s' "$1" | sed 's/^[*[:space:]]*To:[*[:space:]]*//; s/·.*//; s/|.*//' | tr 'A-Z' 'a-z' | sed 's/ and /,/g' | tr -d '`*' | tr ',' ' ')"
+  for tok in $to; do [ -n "$me" ] && [ "$tok" = "$me" ] && { echo direct; return 0; }; done
+  for tok in $to; do [ "$tok" = everyone ] && { echo everyone; return 0; }; done
+  for tok in $to; do
+    [ "$tok" = all ] && [ -n "$me" ] && printf ' %s ' "$3" | grep -qF " $me " && { echo all; return 0; }
+  done
+  return 1
+}
+
+ping_line() { # file label
+  grep -m1 -iE "^[[:space:]]*[-*]?[[:space:]]*\**$2" "$1" 2>/dev/null | sed 's/^[[:space:]]*[-*][[:space:]]*//' | cut -c1-300
+}
+
+# What is new for the session since its last look. --baseline marks all as seen and prints nothing.
+# --peek prints without marking.
+inbox_text() { # sid baseline peek
+  local sid="$1" baseline="$2" peek="$3" nd me cwd seenf statef adir out="" newmail="" branch file src text kind from n
+  local f name hash cur="" prev main ref cur_main prev_main commits overlap mine
+  nd="$(notify_dir)" || return 0
+  me="$(sess_get "$sid" name)"; cwd="$(sess_get "$sid" cwd)"
+  seenf="$nd/seen/$sid.mail"; statef="$nd/seen/$sid.state"; touch "$seenf" "$statef"
+
+  # Mailbox messages.
+  while IFS=$'\t' read -r branch file src; do
+    [ -n "$file" ] || continue
+    newmail="$newmail$branch/$file"$'\n'
+    [ "$baseline" = 1 ] && continue
+    from="$(printf '%s' "$file" | sed -E 's/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{4}Z-//; s/\.md$//')"
+    [ -n "$me" ] && [ "$from" = "$me" ] && continue
+    text="$(read_src "$src")"
+    kind="$(mail_kind "$(printf '%s\n' "$text" | head -1)" "$me" "$(members_of "$branch")")" || continue
+    case "$kind" in
+      direct) out="$out- Message to you from $from in $branch ($file):"$'\n'"$(printf '%s\n' "$text" | head -60 | sed 's/^/    /')"$'\n' ;;
+      *) out="$out- Message to $kind from $from in $branch ($file):"$'\n'"$(printf '%s\n' "$text" | head -25 | sed 's/^/    /')"$'\n' ;;
+    esac
+  done < <(mail_items | awk -F'\t' -v sf="$seenf" 'BEGIN { while ((getline l < sf) > 0) s[l] = 1 } !(($1 "/" $2) in s)')
+
+  # Pings: new, changed and ended.
+  if adir="$(worktree_of "$AGENTS_BRANCH")"; then
+    for f in "$adir"/pings/*.md; do
+      [ -f "$f" ] || continue
+      name="$(basename "$f" .md)"; hash="$(git hash-object "$f" 2>/dev/null)"
+      cur="${cur}ping:$name:$hash"$'\n'
+      [ "$baseline" = 1 ] && continue
+      [ -n "$me" ] && [ "$name" = "$me" ] && continue
+      grep -qxF "ping:$name:$hash" "$statef" && continue
+      if grep -q "^ping:$name:" "$statef"; then out="$out- Ping changed: $name."
+      else out="$out- New ping: $name. $(ping_line "$f" task)"; fi
+      out="$out $(ping_line "$f" status)"$'\n'
+    done
+    if [ "$baseline" != 1 ]; then
+      while IFS= read -r prev; do
+        name="$(printf '%s' "$prev" | cut -d: -f2)"
+        [ -n "$name" ] && [ "$name" != "$me" ] || continue
+        printf '%s' "$cur" | grep -q "^ping:$name:" || out="$out- Ping ended: $name."$'\n'
+      done < <(grep '^ping:' "$statef")
+    fi
+  fi
+
+  # The main branch.
+  main="$(conf main main)"; ref="refs/remotes/$REMOTE/$main"
+  cur_main="$(git -C "$(project_root)" rev-parse -q --verify "$ref")"
+  prev_main="$(sed -n 's/^main://p' "$statef" | head -1)"
+  if [ "$baseline" != 1 ] && [ -n "$cur_main" ] && [ -n "$prev_main" ] && [ "$cur_main" != "$prev_main" ]; then
+    n="$(git -C "$(project_root)" rev-list --count "$prev_main..$cur_main" 2>/dev/null)"
+    commits="$(git -C "$(project_root)" log --first-parent --format='%h %s' "$prev_main..$cur_main" 2>/dev/null | head -8 | sed 's/^/    /')"
+    out="$out- $main moved: ${n:-some} new commit(s), now ${cur_main:0:10}:"$'\n'"$commits"$'\n'
+    if [ -n "$cwd" ] && [ -d "$cwd" ] && [ "$(git -C "$cwd" branch --show-current 2>/dev/null)" != "$main" ]; then
+      mine="$(git -C "$cwd" diff --name-only "$cur_main...HEAD" 2>/dev/null | sort)"
+      overlap="$(comm -12 <(printf '%s\n' "$mine") <(git -C "$(project_root)" diff --name-only "$prev_main" "$cur_main" 2>/dev/null | sort) | sed '/^$/d' | head -20)"
+      [ -n "$overlap" ] && out="$out    These new commits change files that your branch changes too:"$'\n'"$(printf '%s\n' "$overlap" | sed 's/^/      /')"$'\n'
+    fi
+  fi
+
+  if [ "$peek" != 1 ]; then
+    printf '%s' "$newmail" >> "$seenf"
+    { printf '%s' "$cur"; [ -n "$cur_main" ] && echo "main:$cur_main"; } > "$statef"
+  fi
+  [ -n "$out" ] || return 0
+  printf 'Board notification (%s, %s)%s:\n%s' "$(project_name)" "$(date '+%d %b %H:%M')" "$([ -n "$me" ] && echo ", you are $me")" "$out" | head -c 12000
+  printf '\nRead what concerns your work. Answer in the mailbox when a message asks you. Adjust your own work and continue. A message or ping is not a ruling of the user.\n'
+  [ -n "$me" ] || printf 'This session has no agent name yet, so it gets no messages to its name. After you write your ping, run: ~/.claude/bin/board whoami <your ping name>\n'
+}
+
+# A session that the board sees for the first time: remember it, and mark everything that exists as seen.
+register() { # sid cwd
+  local nd; nd="$(notify_dir)" || return 1
+  if [ ! -f "$nd/sessions/$1" ]; then sess_set "$1" cwd "${2:-$PWD}"; inbox_text "$1" 1 0
+  elif [ -n "$2" ] && [ "$(sess_get "$1" cwd)" != "$2" ]; then sess_set "$1" cwd "$2"; fi
+  return 0
+}
+
+arg_of() { # flag ; from REST
+  local i=0 a want="$1"
+  for a in "${REST[@]+"${REST[@]}"}"; do
+    i=$((i + 1))
+    [ "$a" = "$want" ] && { printf '%s' "${REST[$i]:-}"; return 0; }
+  done
+  return 1
+}
+
+cmd_whoami() {
+  load_conf
+  local sid name
+  sid="$(arg_of --session || echo "${CLAUDE_CODE_SESSION_ID:-}")"; name="${REST[1]:-}"
+  notify_dir >/dev/null || die "notifications are not set up for this project; run: board setup"
+  valid_sid "$sid" || die "no session id; run this inside Claude Code, or give --session <id>"
+  valid_name "$name" || die "usage: board whoami <agent name>   (the name of your ping file, without .md)"
+  register "$sid" ""; sess_set "$sid" name "$name"
+  say "notify: this session is $name; messages to $name now wake it"
+}
+
+cmd_inbox() {
+  load_conf
+  local sid
+  sid="$(arg_of --session || echo "${CLAUDE_CODE_SESSION_ID:-}")"
+  valid_sid "$sid" || die "usage: board inbox [--session <id>] [--peek]"
+  notify_dir >/dev/null || die "notifications are not set up for this project; run: board setup"
+  register "$sid" ""
+  inbox_text "$sid" 0 "$(printf '%s\n' "${REST[@]}" | grep -qx -- --peek && echo 1 || echo 0)"
+}
+
+# The Stop hook runs this in the background. It prints the news and exits 2, which wakes the idle session.
+cmd_wait() {
+  load_conf
+  local sid nd pidf fifo old out usefifo=0 w
+  sid="$(arg_of --session)"; valid_sid "$sid" || exit 0
+  nd="$(notify_dir)" || exit 0
+  # Take the place of an older waiter of this session first, so that two waiters never stay.
+  pidf="$nd/waiters/$sid.pid"; fifo="$nd/waiters/$sid.fifo"
+  old="$(cat "$pidf" 2>/dev/null)"
+  echo "$$" > "$pidf"
+  [ -n "$old" ] && [ "$old" != "$$" ] && kill "$old" 2>/dev/null
+  register "$sid" "$(arg_of --cwd || echo "$PWD")"
+  trap '[ "$(cat "$pidf" 2>/dev/null)" = "$$" ] && rm -f "$pidf"' EXIT
+  [ -p "$fifo" ] || mkfifo "$fifo" 2>/dev/null
+  [ -p "$fifo" ] && exec 3<>"$fifo" && usefifo=1
+  while :; do
+    out="$(inbox_text "$sid" 0 0)"
+    if [ -n "$out" ]; then printf '%s\n' "$out" >&2; exit 2; fi
+    if [ "$usefifo" = 1 ]; then
+      read -r -u 3 w || sleep 5
+      sleep 1; while read -r -t 1 -u 3 w; do :; done   # one look for a burst of wakes
+    else
+      sleep 5   # no named pipes on this system: look at the local files only, never the network
+    fi
+    [ "$(cat "$pidf" 2>/dev/null)" = "$$" ] || exit 0
+  done
+}
+
+# A hook tells the board what a tool did. A board write goes out at once; a merge into main sends an event.
+cmd_touched() {
+  load_conf
+  local sid path cmd root dir hit=0 main name
+  sid="$(arg_of --session)"; path="$(arg_of --path)"; cmd="$(arg_of --command)"
+  notify_dir >/dev/null || return 0
+  root="$(project_root)"; main="$(conf main main)"
+  while IFS= read -r b; do
+    dir="$(worktree_of "$b")" || continue
+    case "$path" in "$dir"/*) hit=1 ;; esac
+    case "$cmd" in *"$dir"*|*"$(basename "$dir")"*) hit=1 ;; esac
+  done < <(board_branches | sort -u)
+  case "$cmd" in *"board path"*|*pings/*|*messages/*|*NEXT.md*) hit=1 ;; esac
+  # The ping file that a session writes gives its agent name.
+  if valid_sid "$sid"; then
+    name="$(printf '%s\n' "$path" | sed -n 's#.*/pings/\([A-Za-z0-9._-]*\)\.md$#\1#p')"
+    [ -n "$name" ] || name="$(printf '%s\n' "$cmd" | sed -n 's#.*\(>\|tee \)[^|;&]*pings/\([A-Za-z0-9._-]*\)\.md.*#\2#p' | head -1)"
+    valid_name "$name" && [ "$(sess_get "$sid" name)" != "$name" ] && { register "$sid" ""; sess_set "$sid" name "$name"; }
+  fi
+  if [ "$hit" = 1 ]; then
+    wake_all
+    nohup bash "$SELF" --project "$root" sync >/dev/null 2>&1 </dev/null &
+  fi
+  case "$cmd" in
+    *"gh pr merge"*|*"git push"*" $main"*|*"git push"*":$main"*|*"git push"*":refs/heads/$main"*)
+      nohup bash "$SELF" --project "$root" event "$main" --send >/dev/null 2>&1 </dev/null & ;;
+  esac
+  return 0
+}
+
+# An event arrived (or this computer sends one): fetch, bring the board folders up to date, wake the agents.
+cmd_event() {
+  load_conf
+  local b="${REST[1]:-}" root main sd i
+  root="$(project_root)"; main="$(conf main main)"; sd="$(state_dir)"
+  if [ -n "$b" ] && [ "$b" != "$main" ]; then
+    printf '%s' "$b" | grep -Eq '^[A-Za-z0-9._/-]{1,120}$' && is_board_branch "$b" || return 0
+  fi
+  git -C "$root" $NET fetch -q "$REMOTE" "+refs/heads/$MAILBOX_PREFIX*:refs/remotes/$REMOTE/$MAILBOX_PREFIX*" \
+    "+refs/heads/$main:refs/remotes/$REMOTE/$main" 2>/dev/null
+  printf '%s\n' "${REST[@]}" | grep -qx -- --send && publish "$main"
+  if [ "$b" != "$main" ]; then
+    for i in $(seq 1 60); do [ -d "$sd/sync.lock" ] || break; sleep 1; done
+    bash "$SELF" --project "$root" sync >/dev/null 2>&1
+  fi
+  wake_all
+}
+
+# The listener: one open connection to the relay for each project on each computer. The job keeps it running.
+cmd_listen() {
+  load_conf
+  local c delay=5 line msg root
+  root="$(project_root)"
+  while :; do
+    if ! c="$(notify_conf)"; then sleep 300; continue; fi
+    log "notify: listening on ${c% *}"
+    # Catch up after each connect. It starts a moment later, so that no event falls into the gap.
+    # The relay also sends again the events of the last 30 seconds.
+    ( sleep 1; bash "$SELF" --project "$root" event >/dev/null 2>&1 ) &
+    while IFS= read -r line; do
+      printf '%s' "$line" | grep -Eq '"event":[[:space:]]*"message"' || continue
+      msg="$(printf '%s' "$line" | sed -n 's/.*"message":[[:space:]]*"\([^"]*\)".*/\1/p')"
+      bash "$SELF" --project "$root" event "$msg" >/dev/null 2>&1; delay=5
+    done < <(curl -sN --max-time 86400 "${c% *}/${c#* }/json?since=30s" 2>/dev/null)
+    sleep "$delay"; delay=$(( delay < 60 ? delay * 2 : 60 ))
+  done
 }
 
 # ---------- background job ----------
@@ -500,12 +857,59 @@ EOF
   esac
 }
 
+# The listener for notifications: one long-running process for each project, restarted when it stops.
+install_listener() {
+  local id root sd
+  id="$(job_id)"; root="$(project_root)"; sd="$(state_dir)"
+  case "$(os_kind)" in
+    mac)
+      local plist="${BOARD_LAUNCH_AGENTS:-$HOME/Library/LaunchAgents}/run.board-listen.$id.plist"
+      mkdir -p "$(dirname "$plist")"
+      cat > "$plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>run.board-listen.$id</string>
+  <key>ProgramArguments</key><array><string>/bin/bash</string><string>$SELF</string><string>listen</string><string>--project</string><string>$root</string></array>
+  <key>EnvironmentVariables</key><dict><key>PATH</key><string>/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin</string></dict>
+  <key>KeepAlive</key><true/>
+  <key>RunAtLoad</key><true/>
+  <key>ThrottleInterval</key><integer>30</integer>
+  <key>StandardErrorPath</key><string>$sd/listen.log</string>
+</dict></plist>
+PLIST
+      [ -n "${BOARD_NO_LAUNCHCTL:-}" ] && { say "notify: listener job written (not started)"; return 0; }
+      launchctl bootout "gui/$(id -u)/run.board-listen.$id" >/dev/null 2>&1 || true
+      launchctl bootstrap "gui/$(id -u)" "$plist" || die "launchd refused the listener"
+      say "notify: launchd job run.board-listen.$id listens for board events" ;;
+    windows)
+      local cmdfile bash_w
+      cmdfile="$sd/listen.cmd"
+      bash_w="$(cygpath -w "$(command -v bash)")"
+      printf '@echo off\r\n"%s" "%s" listen --project "%s" > "%s" 2>&1\r\n' \
+        "$bash_w" "$(cygpath -w "$SELF")" "$(cygpath -w "$root")" "$(cygpath -w "$sd/listen.log")" > "$cmdfile"
+      MSYS2_ARG_CONV_EXCL='*' schtasks.exe /Create /F /SC ONLOGON /TN "board-listen\\$id" \
+        /TR "conhost.exe --headless \"$(cygpath -w "$cmdfile")\"" >/dev/null || die "Task Scheduler refused the listener"
+      MSYS2_ARG_CONV_EXCL='*' schtasks.exe /Run /TN "board-listen\\$id" >/dev/null 2>&1 || true
+      say "notify: scheduled task board-listen\\$id listens for board events (it starts at logon)" ;;
+    *)
+      say "notify: no listener job on Linux; start it at login, for example with this crontab line:"
+      say "@reboot $SELF listen --project '$root'" ;;
+  esac
+}
+
 cmd_uninstall() {
   local id; id="$(job_id)"
   case "$(os_kind)" in
     mac) launchctl bootout "gui/$(id -u)/run.board.$id" >/dev/null 2>&1 || true
          rm -f "${BOARD_LAUNCH_AGENTS:-$HOME/Library/LaunchAgents}/run.board.$id.plist" ;;
     windows) MSYS2_ARG_CONV_EXCL='*' schtasks.exe /Delete /F /TN "board\\$id" >/dev/null 2>&1 || true ;;
+  esac
+  case "$(os_kind)" in
+    mac) launchctl bootout "gui/$(id -u)/run.board-listen.$id" >/dev/null 2>&1 || true
+         rm -f "${BOARD_LAUNCH_AGENTS:-$HOME/Library/LaunchAgents}/run.board-listen.$id.plist" ;;
+    windows) MSYS2_ARG_CONV_EXCL='*' schtasks.exe /End /TN "board-listen\\$id" >/dev/null 2>&1 || true
+             MSYS2_ARG_CONV_EXCL='*' schtasks.exe /Delete /F /TN "board-listen\\$id" >/dev/null 2>&1 || true ;;
   esac
   say "background sync stopped for $(project_root) (board folders and memory links stay)"
 }
@@ -519,15 +923,25 @@ job_state() {
   esac
 }
 
+listener_state() {
+  local id; id="$(job_id)"
+  case "$(os_kind)" in
+    mac) launchctl print "gui/$(id -u)/run.board-listen.$id" >/dev/null 2>&1 && echo "running (launchd)" || echo "not installed" ;;
+    windows) MSYS2_ARG_CONV_EXCL='*' schtasks.exe /Query /TN "board-listen\\$id" >/dev/null 2>&1 && echo "installed (Task Scheduler)" || echo "not installed" ;;
+    *) pgrep -f "listen --project $(project_root)" >/dev/null 2>&1 && echo "running" || echo "not running" ;;
+  esac
+}
+
 # ---------- commands ----------
 
 cmd_setup() {
-  local autosync=1 mode=ask a next agents rc
+  local autosync=1 mode=ask a next agents rc notify=1
   for a in "${REST[@]+"${REST[@]}"}"; do
     case "$a" in
       --no-autosync) autosync=0 ;;
       --share-notes) mode=share ;;
       --keep-local) mode=keep ;;
+      --no-notify) notify=0 ;;
     esac
   done
   load_conf
@@ -543,12 +957,16 @@ cmd_setup() {
   link_worktrees "$next/memory" "$mode"
   [ -s "$(state_dir)/unlinked" ] && { say "memory: not linked yet, local notes in:"; sed 's/^/  /' "$(state_dir)/unlinked"; }
   if [ "$autosync" = 1 ]; then install_job; else say "sync: not installed (--no-autosync); run 'board sync' after edits"; fi
+  if [ "$notify" = 1 ]; then
+    ensure_notify "$agents"; mkdir -p "$(state_dir)/notify"; notify_dir >/dev/null; write_dirs
+    if [ "$autosync" = 1 ]; then install_listener; else say "notify: on; no listener job (--no-autosync); run 'board listen' to get events"; fi
+  fi
   cmd_sync && say "first sync done" || say "first sync stuck: see 'board status'"
 }
 
 cmd_status() {
   load_conf
-  local sd branch dir n
+  local sd branch dir n c
   sd="$(state_dir)"
   say "project:  $(project_root)"
   say "job:      $(job_state)"
@@ -566,6 +984,11 @@ cmd_status() {
       say "$branch: not on this computer (board setup)"
     fi
   done < <(board_branches | sort -u)
+  if notify_dir >/dev/null && c="$(notify_conf)"; then
+    say "notify:   on, relay ${c% *}, listener $(listener_state), $(ls "$sd"/notify/waiters/*.pid 2>/dev/null | wc -l | tr -d ' ') waiting session(s)"
+  else
+    say "notify:   off (board setup turns it on)"
+  fi
   if [ -s "$sd/stuck" ]; then say "STUCK: $(cat "$sd/stuck")"; else say "not stuck"; fi
   tail -3 "$sd/sync.log" 2>/dev/null
 }
@@ -590,6 +1013,7 @@ cmd_mailbox() {
   local name="${REST[1]:-}"
   [ -n "$name" ] || die "usage: board mailbox <agent-a>-<agent-b> | group-<topic>"
   ensure_board mailbox "$MAILBOX_PREFIX$name"
+  write_dirs
 }
 
 cmd_check() {
@@ -619,6 +1043,12 @@ cmd_check() {
 
 parse_project "$@"
 set -- "${REST[@]+"${REST[@]}"}"
+# Each command asks for the project root many times. Find it one time for the run.
+case "${1:-help}" in
+  help|-h|--help) ;;
+  *) _ROOT="$(project_root 2>/dev/null)" || _ROOT=""
+     [ -n "$_ROOT" ] && _COMMON="$(git -C "$_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" ;;
+esac
 case "${1:-help}" in
   setup) cmd_setup ;;
   sync) cmd_sync ;;
@@ -627,5 +1057,11 @@ case "${1:-help}" in
   mailbox) cmd_mailbox ;;
   check) cmd_check ;;
   uninstall) cmd_uninstall ;;
-  *) sed -n '2,22p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; [ "${1:-help}" = help ] ;;
+  whoami) cmd_whoami ;;
+  inbox) cmd_inbox ;;
+  wait) cmd_wait ;;
+  touched) cmd_touched ;;
+  event) cmd_event ;;
+  listen) cmd_listen ;;
+  *) sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; [ "${1:-help}" = help ] ;;
 esac

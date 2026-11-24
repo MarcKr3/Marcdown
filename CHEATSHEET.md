@@ -60,7 +60,7 @@ Claude reads `NEXT.md` at the start. The to-do items point to the plan node `pla
 | `docs-and-cleanup` | Sonnet | Docs, type hints, comments and dead code after the checks pass |
 | `worktree-merger` | Sonnet | Merges the branches of parallel worktree agents |
 
-The chat that you open is the lead. The lead orchestrates the agents and makes the decisions with you. The lead makes trivial changes itself. It starts with few agents and adds agents only when the task proves larger. Agents align through pings and mailboxes on the board.
+The chat that you open is the lead. The lead orchestrates the agents and makes the decisions with you. The lead makes trivial changes itself. It starts with few agents and adds agents only when the task proves larger. Agents align through pings and mailboxes on the board. Board news comes to each agent automatically: a message to its name, to `all` in its mailbox or to `everyone`, a ping change, and new commits on main. A message wakes a chat that waits, on any computer.
 
 ## The Board
 
@@ -68,8 +68,10 @@ Each project keeps the shared agent state on branches of its own remote. Run `~/
 
 | Command | What it does |
 |---------|--------------|
-| `board setup` | Checks out the board, links the memory folders, starts the 2-minute sync |
-| `board status` | Shows the sync job, the memory links and anything stuck |
+| `board setup` | Checks out the board, links the memory folders, starts the 2-minute sync and the notification listener |
+| `board status` | Shows the sync job, the memory links, the notifications and anything stuck |
+| `board whoami <name>` | Tells the board which agent this chat is, so that messages to that name wake it |
+| `board inbox` | Shows what is new on the board for this chat (the hooks do this automatically) |
 | `board path next\|memory\|computer\|agents` | Shows where a board folder is on this computer |
 | `board mailbox <name>` | Opens or joins a mailbox branch |
 | `board check` | Finds broken links in the shared memory |
@@ -84,6 +86,7 @@ Each project keeps the shared agent state on branches of its own remote. Run `~/
 | `memory/` | The shared project memory and the debug notes. `memory/computers/{name}/` holds notes for one computer. |
 | `handoffs/` | The handoffs that you ask for |
 | Pings (`agents` branch) and mailboxes (`mailbox/*` branches) | Agent communication across computers |
+| `NOTIFY.md` (`agents` branch) | The topic of the push relay for board notifications |
 | `.claude/agent-memory/<agent>/` | The learning of each agent from session to session |
 
 ## Parallel Work
