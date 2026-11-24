@@ -34,6 +34,8 @@ __pycache__/
 *.backup*
 **.json
 **.jsonl
+# Backups of settings.json, for example settings.json.bak-<date>, stay on the computer.
+settings.json.*
 
 # === Nested runtime dirs (created by subagents) ===
 **/.claude/
