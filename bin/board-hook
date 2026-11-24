@@ -31,11 +31,37 @@ event="$(field hook_event_name)"; sid="$(field session_id)"
 
 b() { bash "$BOARD" --project "$cwd" "$@"; }
 
+# The background jobs cannot run where macOS protects the folder (Documents, Desktop). A Claude session can.
+# So the session keeps the listener alive, and syncs the board when the last sync is 2 minutes old.
+# Start a command in its own session, so that it outlives the hook.
+detach() {
+  if command -v python3 >/dev/null 2>&1; then
+    nohup python3 -I -c 'import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' "$@" >/dev/null 2>&1 </dev/null &
+  else
+    nohup "$@" >/dev/null 2>&1 </dev/null &
+  fi
+}
+
+keep_alive() {
+  local pid; pid="$(cat "$nd/listener.pid" 2>/dev/null)"
+  if [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; then
+    detach bash "$BOARD" --project "$cwd" listen
+  fi
+  local last; last="$(cat "$common/board/last-sync" 2>/dev/null || echo 0)"
+  if [ $(( $(date +%s) - ${last:-0} )) -ge 120 ]; then
+    detach bash "$BOARD" --project "$cwd" sync
+  fi
+}
+
 # Print the news as context for the model, in the JSON form of the hook.
 give() { # event text
   [ -n "$2" ] || return 0
   python3 -I -c 'import json, sys; print(json.dumps({"hookSpecificOutput": {"hookEventName": sys.argv[1], "additionalContext": sys.argv[2]}}))' "$1" "$2"
 }
+
+case "$event" in
+  SessionStart|UserPromptSubmit|Stop) keep_alive ;;
+esac
 
 case "$event" in
   SessionStart)
