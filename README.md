@@ -56,7 +56,7 @@ Run this command in a checkout of the project. On Windows, use `bin\board.cmd` f
 
 The command checks out the board branches beside the project. It links the Claude memory folder of each checkout and each worktree to the shared memory. Then it starts the sync job. If this computer has memory notes that the board does not have, the command lists them and stops. Run it again with `--share-notes` to share them, or with `--keep-local` to keep them on this computer only. `board status` shows the sync. To test the tool, run `bash tests/board.sh` in this repository.
 
-The setup also turns on the board notifications. The first setup of a project writes `NOTIFY.md` with a random relay topic on the agents branch. On each computer, the setup starts a listener job that keeps one open connection to the relay (`https://ntfy.sh` by default). `/marcdown-setup` adds the hooks of `bin/board-hook` to `~/.claude/settings.json`. Use `--no-notify` to set up the board without notifications.
+The setup also turns on the board notifications. The first setup of a project writes `NOTIFY.md` with a random relay topic on the agents branch. On each computer, the setup starts a listener job that keeps one open connection to the relay (`https://ntfy.sh` by default). `/marcdown-setup` adds the hooks of `bin/board-hook` to `~/.claude/settings.json`. Use `--no-notify` to set up the board without notifications. On macOS, a background job cannot read a project in Documents or Desktop. Then each open Claude session keeps the listener running and syncs the board every 2 minutes. To run the jobs also without a Claude session, give `/bin/bash` Full Disk Access.
 
 ## Update
 
