@@ -449,6 +449,7 @@ cmd_sync() {
     rm -rf "$LOCK"; mkdir "$LOCK" || exit 0
   fi
   trap 'rm -rf "$LOCK"' EXIT
+  date +%s > "$sd/last-sync"
   while IFS= read -r branch; do
     dir="$(worktree_of "$branch")" || continue
     sync_one "$dir" "$branch"; rc=$?
@@ -797,8 +798,14 @@ cmd_event() {
 # The listener: one open connection to the relay for each project on each computer. The job keeps it running.
 cmd_listen() {
   load_conf
-  local c delay=5 line msg root
+  local c delay=5 line msg root nd pidf old
   root="$(project_root)"
+  # One listener for each project on each computer. A Claude hook or the job can start it.
+  nd="$(notify_dir)" || exit 0
+  pidf="$nd/listener.pid"; old="$(cat "$pidf" 2>/dev/null)"
+  if [ -n "$old" ] && [ "$old" != "$$" ] && kill -0 "$old" 2>/dev/null; then exit 0; fi
+  echo "$$" > "$pidf"
+  trap '[ "$(cat "$pidf" 2>/dev/null)" = "$$" ] && rm -f "$pidf"' EXIT
   while :; do
     if ! c="$(notify_conf)"; then sleep 300; continue; fi
     log "notify: listening on ${c% *}"
@@ -1046,6 +1053,15 @@ set -- "${REST[@]+"${REST[@]}"}"
 # Each command asks for the project root many times. Find it one time for the run.
 case "${1:-help}" in
   help|-h|--help) ;;
+  listen|sync)
+     # A job that macOS keeps out of a protected folder (Documents, Desktop) cannot read the project.
+     # It says so one time and waits, so that launchd does not restart it every 30 seconds.
+     if ! _ROOT="$(project_root 2>/dev/null)"; then
+       echo "board: $(date '+%Y-%m-%d %H:%M:%S') cannot read ${PROJECT:-$PWD}. macOS keeps background jobs out of Documents and Desktop. The Claude hooks run the sync and the listener while a Claude session is open. To run them always, give /bin/bash Full Disk Access." >&2
+       [ "$1" = listen ] && sleep 3600
+       exit 1
+     fi
+     _COMMON="$(git -C "$_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" ;;
   *) _ROOT="$(project_root 2>/dev/null)" || _ROOT=""
      [ -n "$_ROOT" ] && _COMMON="$(git -C "$_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" ;;
 esac

@@ -202,6 +202,12 @@ SB4=sessionB-0004
 hook() { HOME="$HOME_B" bash "$HOOK"; }
 printf '{"hook_event_name":"SessionStart","session_id":"%s","cwd":"%s","source":"startup"}' $SB4 "$T/B/proj" | hook > "$T/hook.out"
 ok "SessionStart says notifications are on" 'grep -q "Board notifications are on" "$T/hook.out"'
+for i in 1 2 3 4 5 6; do LP="$(cat "$T/B/proj/.git/board/notify/listener.pid" 2>/dev/null)"; [ -n "$LP" ] && break; sleep 1; done
+ok "a session starts the listener" '[ -n "$LP" ] && kill -0 "$LP" 2>/dev/null'
+ok "a session runs a sync when the last one is old" 'for i in 1 2 3 4 5; do [ -s "$T/B/proj/.git/board/last-sync" ] && break; sleep 1; done; [ -s "$T/B/proj/.git/board/last-sync" ]'
+printf '{"hook_event_name":"SessionStart","session_id":"sessionB-0005","cwd":"%s","source":"startup"}' "$T/B/proj" | hook >/dev/null
+sleep 2
+ok "one listener only" '[ "$(cat "$T/B/proj/.git/board/notify/listener.pid")" = "$LP" ] && kill -0 "$LP" 2>/dev/null'
 printf '{"hook_event_name":"PostToolUse","session_id":"%s","cwd":"%s","tool_name":"Write","tool_input":{"file_path":"%s/pings/b-four.md"}}' \
   $SB4 "$T/B/proj" "$(bB path agents)" | hook >/dev/null
 ok "a ping write names the session" 'grep -qx "name=b-four" "$T/B/proj/.git/board/notify/sessions/$SB4"'
@@ -216,6 +222,8 @@ ok "a subagent gets nothing" '[ ! -s "$T/hook.out" ]'
 printf '{"hook_event_name":"PostToolUse","session_id":"%s","cwd":"%s","tool_name":"Read"}' $SB4 "$T" | hook > "$T/hook.out"; rc=$?
 ok "outside a board project the hook is silent" '[ "$rc" = 0 ] && [ ! -s "$T/hook.out" ]'
 
+# The listener of B would sync B by itself during the conflict test below. Stop it first.
+pkill -f "$T/B/proj listen" 2>/dev/null; pkill -f "$BOARD_NOTIFY_SERVER/" 2>/dev/null; sleep 1
 # ---- a real conflict stops, keeps the local commit, never force-pushes ----
 echo "A line" > "$NEXT_A/NEXT.md"; echo "B line" > "$NEXT_B/NEXT.md"
 bA sync
