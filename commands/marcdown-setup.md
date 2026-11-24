@@ -6,6 +6,9 @@ This command is the main way to install or update Marcdown. It shows the changes
 
 **Marcdown default (apply it with no question, unless the user said otherwise):**
 - In `~/.claude/settings.json`: the Stop hook `~/.claude/bin/verify-hook` under `hooks.Stop`. Add it once. It does nothing outside a Loop.
+- In `~/.claude/settings.json`: the hooks of the board notifications. Add each one once. They do nothing in a project without board notifications.
+  - `hooks.SessionStart`, `hooks.UserPromptSubmit` and `hooks.PostToolUse`: `{"type": "command", "command": "~/.claude/bin/board-hook"}`.
+  - `hooks.Stop`: `{"type": "command", "command": "~/.claude/bin/board-hook", "async": true, "asyncRewake": true, "timeout": 604800}`. It waits in the background while the chat is idle, and wakes the chat when board news comes. Keep it beside the verify hook.
 - Merge with `jq --slurpfile` from a file made with `mktemp`. Check the result with `jq empty` before you write it.
 
 Do not change the settings of a project. The one-time project setup of `~/.claude/CLAUDE.md` does that, the first time that Claude works in the project.
